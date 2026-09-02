@@ -16,6 +16,7 @@ class InterviewSession(Base):
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     candidate_name = Column(String, index=True)
     role = Column(String)
+    job_description = Column(String, nullable=True)
     status = Column(String, default=SessionStatus.CREATED)
     
     # Stores the LangGraph/Interview state as JSON

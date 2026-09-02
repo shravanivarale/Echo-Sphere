@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { CheckCircle, TrendingUp, MessageSquare, User, Briefcase, Star, AlertTriangle, ThumbsUp, RotateCcw } from 'lucide-react';
+import { CheckCircle, TrendingUp, MessageSquare, User, Briefcase, Star, AlertTriangle, ThumbsUp, RotateCcw, Cpu, Users } from 'lucide-react';
 import './Report.css';
 
 const SCORE_COLOR = (score) => {
@@ -44,7 +44,7 @@ function ScoreRing({ value, max = 10, color, label }) {
 
 export default function Report({ report, session, onRestart }) {
   if (!report) return null;
-  const rec = RECOMMENDATION_CONFIG[report.recommendation] || RECOMMENDATION_CONFIG['Borderline'];
+  const rec = RECOMMENDATION_CONFIG[report.recommendation] || RECOMMENDATION_CONFIG['Hire'];
 
   return (
     <div className="report-page">
@@ -53,18 +53,31 @@ export default function Report({ report, session, onRestart }) {
         <motion.div className="report-header" initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
           <div className="report-logo">ES</div>
           <div>
-            <h1 className="report-title">Interview Assessment</h1>
-            <p className="report-subtitle">EchoSphere MVP V1 — AI Panel Report</p>
+            <h1 className="report-title">Interview Assessment Report</h1>
+            <p className="report-subtitle">EchoSphere Multi-Agent Panel • Agora Voice Engine</p>
           </div>
         </motion.div>
 
-        {/* Candidate Info */}
+        {/* Candidate & Panel Info */}
         <motion.div className="report-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <div className="report-card-row">
             <div className="info-item"><User size={16} className="info-icon" /><div><p className="info-label">Candidate</p><p className="info-value">{report.candidate_name}</p></div></div>
-            <div className="info-item"><Briefcase size={16} className="info-icon" /><div><p className="info-label">Role</p><p className="info-value">{report.role}</p></div></div>
-            <div className="info-item"><MessageSquare size={16} className="info-icon" /><div><p className="info-label">Interview Turns</p><p className="info-value">{report.turn_count}</p></div></div>
+            <div className="info-item"><Briefcase size={16} className="info-icon" /><div><p className="info-label">Target Role</p><p className="info-value">{report.role}</p></div></div>
+            <div className="info-item"><MessageSquare size={16} className="info-icon" /><div><p className="info-label">Panel Turns</p><p className="info-value">{report.turn_count}</p></div></div>
           </div>
+
+          {report.panel_members && (
+            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Users size={14} /> Evaluation Panel:
+              </span>
+              {report.panel_members.map((m, idx) => (
+                <span key={idx} style={{ fontSize: '0.75rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: '6px', color: '#e2e8f0' }}>
+                  {m.name} ({m.role})
+                </span>
+              ))}
+            </div>
+          )}
         </motion.div>
 
         {/* Recommendation */}
@@ -84,25 +97,25 @@ export default function Report({ report, session, onRestart }) {
 
         {/* Scores */}
         <motion.div className="report-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <h3 className="section-title"><TrendingUp size={16} /> Score Breakdown</h3>
+          <h3 className="section-title"><TrendingUp size={16} /> Panel Score Breakdown</h3>
           <div className="scores-row">
             <ScoreRing value={report.overall_score}        color={SCORE_COLOR(report.overall_score)}        label="Overall" />
-            <ScoreRing value={report.technical_score}      color={SCORE_COLOR(report.technical_score)}      label="Technical" />
-            <ScoreRing value={report.product_score}        color={SCORE_COLOR(report.product_score)}        label="Product" />
+            <ScoreRing value={report.technical_score}      color={SCORE_COLOR(report.technical_score)}      label="System Architecture" />
+            <ScoreRing value={report.product_score}        color={SCORE_COLOR(report.product_score)}        label="Product Strategy" />
             <ScoreRing value={report.communication_score}  color={SCORE_COLOR(report.communication_score)}  label="Communication" />
           </div>
         </motion.div>
 
         {/* Summary */}
         <motion.div className="report-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
-          <h3 className="section-title"><Star size={16} /> Summary</h3>
+          <h3 className="section-title"><Star size={16} /> Evaluation Summary</h3>
           <p className="summary-text">{report.summary}</p>
         </motion.div>
 
         {/* Strengths & Weaknesses */}
         <motion.div className="report-card-row-2" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <div className="report-card">
-            <h3 className="section-title strengths"><ThumbsUp size={16} /> Strengths</h3>
+            <h3 className="section-title strengths"><ThumbsUp size={16} /> Key Strengths</h3>
             <ul className="feedback-list">
               {report.strengths?.map((s, i) => (
                 <li key={i} className="feedback-item strength"><CheckCircle size={14} />{s}</li>
@@ -110,7 +123,7 @@ export default function Report({ report, session, onRestart }) {
             </ul>
           </div>
           <div className="report-card">
-            <h3 className="section-title weaknesses"><AlertTriangle size={16} /> Areas to Improve</h3>
+            <h3 className="section-title weaknesses"><AlertTriangle size={16} /> Development Areas</h3>
             <ul className="feedback-list">
               {report.weaknesses?.map((w, i) => (
                 <li key={i} className="feedback-item weakness"><AlertTriangle size={14} />{w}</li>
@@ -122,7 +135,7 @@ export default function Report({ report, session, onRestart }) {
         {/* Actions */}
         <motion.div className="report-actions" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
           <button className="btn-restart" onClick={onRestart}>
-            <RotateCcw size={16} /> Start New Interview
+            <RotateCcw size={16} /> Start New Interview Session
           </button>
         </motion.div>
       </div>

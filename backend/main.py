@@ -29,12 +29,23 @@ app = FastAPI(
     version="1.0.0",
 )
 
-origins_str = os.getenv("CORS_ORIGINS", "http://localhost:5173")
-origins = [o.strip() for o in origins_str.split(",")]
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+origins_str = os.getenv("CORS_ORIGINS", "")
+if origins_str:
+    origins.extend([o.strip() for o in origins_str.split(",") if o.strip()])
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -76,10 +87,13 @@ def create_session(payload: schemas.SessionCreate, db: Session = Depends(get_db)
         "session_id": "",   # filled after DB insert
         "candidate_name": payload.candidate_name,
         "role": payload.role,
+        "job_description": payload.job_description or "",
         "conversation_history": [],
         "current_question": "",
         "latest_answer": "",
         "active_interviewer": "SYSTEM_ARCHITECT",
+        "orchestrator_decision": "",
+        "is_repeat": False,
         "tech_score": {},
         "pm_score": {},
         "sandbox_state": {},
@@ -90,6 +104,7 @@ def create_session(payload: schemas.SessionCreate, db: Session = Depends(get_db)
     db_session = models.InterviewSession(
         candidate_name=payload.candidate_name,
         role=payload.role,
+        job_description=payload.job_description or "",
         state=initial_state,
         sandbox_state={},
     )
@@ -177,9 +192,13 @@ def send_message(
     return {
         "question": state["current_question"],
         "active_interviewer": state["active_interviewer"],
+        "orchestrator_decision": state.get("orchestrator_decision", ""),
+        "eval_state": state.get("eval_state", "DECENT_GOOD"),
+        "is_repeat": state.get("is_repeat", False),
         "turn_count": state["turn_count"],
         "tech_score": state.get("tech_score", {}),
         "pm_score": state.get("pm_score", {}),
+        "transcript": state.get("transcript", []),
         "mock_mode": MOCK_MODE,
     }
 
@@ -215,6 +234,13 @@ def get_agora_token(session_id: str, db: Session = Depends(get_db)):
     channel = f"echosphere_{session_id[:8]}"
     token_data = generate_agora_token(channel_name=channel)
     return token_data
+
+
+@app.get("/api/v1/agora/conversational-ai-config", tags=["Voice"])
+def get_agora_conversational_ai_config():
+    """Retrieve Agora Conversational AI & VAD parameters."""
+    from services.agora_service import get_agora_vad_config
+    return get_agora_vad_config()
 
 
 # ── Assessment ────────────────────────────────────────────────────────────────

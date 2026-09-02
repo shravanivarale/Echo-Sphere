@@ -7,12 +7,14 @@ from models import SessionStatus
 class SessionCreate(BaseModel):
     candidate_name: str
     role: str
+    job_description: Optional[str] = ""
 
 
 class SessionResponse(BaseModel):
     id: str
     candidate_name: str
     role: str
+    job_description: Optional[str] = ""
     status: SessionStatus
     state: Dict[str, Any]
     sandbox_state: Dict[str, Any]
