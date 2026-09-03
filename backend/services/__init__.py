@@ -1,1 +1,0 @@
-# EchoSphere Services package

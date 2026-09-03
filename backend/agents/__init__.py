@@ -1,1 +1,0 @@
-# EchoSphere AI Agents package
