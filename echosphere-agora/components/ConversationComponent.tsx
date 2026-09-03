@@ -44,6 +44,13 @@ import {
 } from './QuickstartPipelineMetrics';
 import { QuickstartTranscriptPanel } from './QuickstartTranscriptPanel';
 import type { ConversationComponentProps } from '@/types/conversation';
+import {
+  InterviewPhase,
+  InterviewSession,
+  PHASE_LABELS,
+  PHASE_ORDER,
+  PHASE_THRESHOLDS,
+} from '@/types/interview';
 
 // Cap the displayed issues list to avoid overwhelming the UI during a cascade of errors.
 const MAX_CONNECTION_ISSUES = 6;
@@ -117,6 +124,16 @@ export default function ConversationComponent({
   const [connectionIssues, setConnectionIssues] = useState<ConnectionIssue[]>(
     [],
   );
+
+  // ── Step 4E: Interview session + phase tracking ──────────────────────────────
+  // Phase lives purely in the client. Agora's running LLM session cannot be
+  // mutated post-start, so Ada's phase awareness comes from her system prompt.
+  const [session, setSession] = useState<InterviewSession>({
+    sessionId: agoraData.channel,
+    agentId: agoraData.agentId,
+    currentPhase: InterviewPhase.BACKGROUND,
+    completedCandidateTurns: 0,
+  });
   const addConnectionIssue = useCallback((issue: ConnectionIssue) => {
     setConnectionIssues((prev) => {
       const isDuplicate = prev.some(
@@ -375,6 +392,50 @@ export default function ConversationComponent({
     return getCurrentInProgressMessage(transcript);
   }, [transcript]);
 
+  // ── Step 4E: Advance phase based on completed candidate turn count ───────────
+  // Triggered any time messageList changes (i.e., every TRANSCRIPT_UPDATED where
+  // a turn finalises). Counting only candidate turns (uid !== agentUID) prevents
+  // agent replies from advancing the phase counter prematurely.
+  //
+  // Safety properties:
+  //   • Forward-only: guard `indexOf(next) > indexOf(prev)` prevents regression.
+  //   • Idempotent: same messageList length always maps to the same phase.
+  //   • StrictMode-safe: no external side-effect; pure state derivation.
+  //   • Dedup: setSession is a no-op when nextPhase === prev.currentPhase.
+  useEffect(() => {
+    // Count completed candidate (non-agent) turns
+    const candidateTurns = messageList.filter(
+      (m) => String(m.uid) !== agentUID,
+    ).length;
+
+    // Walk phases from highest to lowest to find the first one the candidate qualifies for
+    const nextPhase =
+      [...PHASE_ORDER].reverse().find(
+        (phase) => candidateTurns >= PHASE_THRESHOLDS[phase],
+      ) ?? InterviewPhase.BACKGROUND;
+
+    setSession((prev) => {
+      // No-op: phase is already at or beyond the computed next phase
+      if (
+        PHASE_ORDER.indexOf(nextPhase) <=
+        PHASE_ORDER.indexOf(prev.currentPhase)
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        currentPhase: nextPhase,
+        completedCandidateTurns: candidateTurns,
+      };
+    });
+  }, [messageList, agentUID]);
+
+  // Memoised phase label for rendering
+  const phaseLabel = useMemo(
+    () => PHASE_LABELS[session.currentPhase],
+    [session.currentPhase],
+  );
+
   // Publish local mic once the track exists; usePublish waits for RTC connection.
   usePublish([localMicrophoneTrack]);
 
@@ -480,6 +541,21 @@ export default function ConversationComponent({
         />
       }
       pipelineMetrics={<QuickstartPipelineMetrics metrics={agentMetrics} />}
+      phaseIndicator={
+        <div
+          className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1"
+          role="status"
+          aria-label={`Current interview phase: ${phaseLabel}`}
+          title={`Interview phase: ${phaseLabel}`}
+        >
+          <span className="hidden text-xs font-medium text-muted-foreground sm:inline">
+            Phase
+          </span>
+          <span className="text-xs font-semibold text-foreground">
+            {phaseLabel}
+          </span>
+        </div>
+      }
       transcriptPanel={
         <QuickstartTranscriptPanel
           messageList={messageList}

@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 type QuickstartConversationLayoutProps = {
   statusPanel: ReactNode;
   pipelineMetrics: ReactNode;
+  /** Optional phase badge rendered in the header. Pass null/undefined to hide. */
+  phaseIndicator?: ReactNode;
   transcriptPanel: ReactNode;
   visualizer: ReactNode;
   controls: ReactNode;
@@ -16,6 +18,7 @@ type QuickstartConversationLayoutProps = {
 export function QuickstartConversationLayout({
   statusPanel,
   pipelineMetrics,
+  phaseIndicator,
   transcriptPanel,
   visualizer,
   controls,
@@ -34,13 +37,14 @@ export function QuickstartConversationLayout({
           />
           <div className="flex min-w-0 flex-col justify-center gap-1">
             <span className="truncate text-lg font-semibold leading-none tracking-[-0.025em] text-foreground">
-              Agora Conversational AI
+              EchoSphere
             </span>
             {pipelineMetrics}
           </div>
         </div>
 
         <div className="flex items-center gap-2 md:pr-1">
+          {phaseIndicator}
           {statusPanel}
           <Button
             variant="destructive"
