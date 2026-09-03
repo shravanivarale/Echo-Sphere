@@ -134,6 +134,8 @@ export async function POST(request: NextRequest) {
         // }),
       )
       .withLlm(
+        // Agora-managed ready-to-use OpenAI model (inferred reseller preset openai_gpt_4o_mini).
+        // No external API key or custom endpoint required.
         new OpenAI({
           model: 'gpt-4o-mini',
           greetingMessage: GREETING,
@@ -145,18 +147,6 @@ export async function POST(request: NextRequest) {
             top_p: 0.95,
           },
         }),
-        // BYOK: uncomment the following block and set NEXT_LLM_API_KEY and NEXT_LLM_URL
-        // new OpenAI({
-        //   apiKey: requireEnv('NEXT_LLM_API_KEY'),
-        //   url: requireEnv('NEXT_LLM_URL'),
-        //   model: 'gpt-4o-mini',
-        //   greetingMessage: GREETING,
-        //   failureMessage: 'Please wait a moment.',
-        //   maxHistory: 15,
-        //   maxTokens: 1024,
-        //   temperature: 0.7,
-        //   topP: 0.95,
-        // }),
       )
       .withTts(
         new MiniMaxTTS({

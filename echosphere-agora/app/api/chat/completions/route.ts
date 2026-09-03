@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { streamText } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
-import { randomUUID } from 'crypto';
+import { randomUUID, timingSafeEqual } from 'crypto';
 
 type ChatBody = {
   messages?: Array<{ role: string; content: unknown }>;
@@ -14,6 +14,20 @@ type ChatCompletionsDeps = {
   createOpenAIClient: typeof createOpenAI;
   streamTextImpl: typeof streamText;
 };
+
+function secretsEqual(left: string, right: string): boolean {
+  const a = Buffer.from(left);
+  const b = Buffer.from(right);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+function readBearerToken(request: NextRequest): string | null {
+  const authorization = request.headers.get('authorization');
+  if (!authorization) return null;
+  const match = authorization.match(/^Bearer\s+(\S+)/i);
+  return match?.[1] ?? null;
+}
 
 /**
  * OpenAI-compatible Chat Completions endpoint backed by Vercel AI SDK.
@@ -30,18 +44,33 @@ export function createChatCompletionsHandler({
 }: ChatCompletionsDeps) {
   return async function POST(request: NextRequest) {
     // ── Config ────────────────────────────────────────────────────────────────
-    const apiKey = process.env.NEXT_LLM_API_KEY;
-    const llmUrl = process.env.NEXT_LLM_URL;
+    const expectedAgoraKey = process.env.ECHOSPHERE_LLM_API_KEY;
+    const apiKey = process.env.UPSTREAM_LLM_API_KEY;
+    const llmUrl = process.env.UPSTREAM_LLM_URL;
     // Model is pinned here — change this to switch models without other config changes.
     // Never use body.model; that would allow callers to route to arbitrary models.
     const modelId = 'gpt-4o';
 
-    if (!apiKey || !llmUrl) {
+    if (!expectedAgoraKey) {
       return NextResponse.json(
-        { error: 'NEXT_LLM_API_KEY and NEXT_LLM_URL must be set' },
+        { error: 'ECHOSPHERE_LLM_API_KEY must be set' },
         { status: 500 },
       );
     }
+
+    if (!apiKey || !llmUrl) {
+      return NextResponse.json(
+        { error: 'UPSTREAM_LLM_API_KEY and UPSTREAM_LLM_URL must be set' },
+        { status: 500 },
+      );
+    }
+
+    const presentedKey = readBearerToken(request);
+    if (!presentedKey || !secretsEqual(presentedKey, expectedAgoraKey)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    console.log('[custom-llm] request received');
 
     // @ai-sdk/openai needs a base URL, not the full /chat/completions path
     const baseURL = llmUrl.replace(/\/chat\/completions\/?$/, '');

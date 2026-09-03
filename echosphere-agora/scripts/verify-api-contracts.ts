@@ -105,11 +105,13 @@ async function verifyGenerateAgoraTokenReplacesZeroUid() {
 async function verifyChatCompletionsMissingEnv() {
   const { createChatCompletionsHandler } =
     await import('../app/api/chat/completions/route');
-  const originalApiKey = process.env.NEXT_LLM_API_KEY;
-  const originalUrl = process.env.NEXT_LLM_URL;
+  const originalEchoKey = process.env.ECHOSPHERE_LLM_API_KEY;
+  const originalApiKey = process.env.UPSTREAM_LLM_API_KEY;
+  const originalUrl = process.env.UPSTREAM_LLM_URL;
 
-  delete process.env.NEXT_LLM_API_KEY;
-  delete process.env.NEXT_LLM_URL;
+  process.env.ECHOSPHERE_LLM_API_KEY = 'test-echosphere-key';
+  delete process.env.UPSTREAM_LLM_API_KEY;
+  delete process.env.UPSTREAM_LLM_URL;
 
   const handler = createChatCompletionsHandler({
     createOpenAIClient: (() => {
@@ -136,19 +138,24 @@ async function verifyChatCompletionsMissingEnv() {
       'POST /api/chat/completions should reject missing LLM env',
     );
     assert(
-      body.error === 'NEXT_LLM_API_KEY and NEXT_LLM_URL must be set',
+      body.error === 'UPSTREAM_LLM_API_KEY and UPSTREAM_LLM_URL must be set',
       'POST /api/chat/completions should explain missing LLM env',
     );
   } finally {
-    if (originalApiKey === undefined) {
-      delete process.env.NEXT_LLM_API_KEY;
+    if (originalEchoKey === undefined) {
+      delete process.env.ECHOSPHERE_LLM_API_KEY;
     } else {
-      process.env.NEXT_LLM_API_KEY = originalApiKey;
+      process.env.ECHOSPHERE_LLM_API_KEY = originalEchoKey;
+    }
+    if (originalApiKey === undefined) {
+      delete process.env.UPSTREAM_LLM_API_KEY;
+    } else {
+      process.env.UPSTREAM_LLM_API_KEY = originalApiKey;
     }
     if (originalUrl === undefined) {
-      delete process.env.NEXT_LLM_URL;
+      delete process.env.UPSTREAM_LLM_URL;
     } else {
-      process.env.NEXT_LLM_URL = originalUrl;
+      process.env.UPSTREAM_LLM_URL = originalUrl;
     }
   }
 }
@@ -156,10 +163,12 @@ async function verifyChatCompletionsMissingEnv() {
 async function verifyChatCompletionsInvalidJson() {
   const { createChatCompletionsHandler } =
     await import('../app/api/chat/completions/route');
-  const originalApiKey = process.env.NEXT_LLM_API_KEY;
-  const originalUrl = process.env.NEXT_LLM_URL;
-  process.env.NEXT_LLM_API_KEY = 'test-key';
-  process.env.NEXT_LLM_URL = 'https://example.test/v1/chat/completions';
+  const originalEchoKey = process.env.ECHOSPHERE_LLM_API_KEY;
+  const originalApiKey = process.env.UPSTREAM_LLM_API_KEY;
+  const originalUrl = process.env.UPSTREAM_LLM_URL;
+  process.env.ECHOSPHERE_LLM_API_KEY = 'test-echosphere-key';
+  process.env.UPSTREAM_LLM_API_KEY = 'test-key';
+  process.env.UPSTREAM_LLM_URL = 'https://example.test/v1/chat/completions';
 
   const handler = createChatCompletionsHandler({
     createOpenAIClient: (() => {
@@ -176,6 +185,7 @@ async function verifyChatCompletionsInvalidJson() {
       {
         body: '{not json',
         method: 'POST',
+        headers: { Authorization: 'Bearer test-echosphere-key' },
       },
     );
     const response = await handler(request);
@@ -190,15 +200,20 @@ async function verifyChatCompletionsInvalidJson() {
       'POST /api/chat/completions should explain invalid JSON',
     );
   } finally {
-    if (originalApiKey === undefined) {
-      delete process.env.NEXT_LLM_API_KEY;
+    if (originalEchoKey === undefined) {
+      delete process.env.ECHOSPHERE_LLM_API_KEY;
     } else {
-      process.env.NEXT_LLM_API_KEY = originalApiKey;
+      process.env.ECHOSPHERE_LLM_API_KEY = originalEchoKey;
+    }
+    if (originalApiKey === undefined) {
+      delete process.env.UPSTREAM_LLM_API_KEY;
+    } else {
+      process.env.UPSTREAM_LLM_API_KEY = originalApiKey;
     }
     if (originalUrl === undefined) {
-      delete process.env.NEXT_LLM_URL;
+      delete process.env.UPSTREAM_LLM_URL;
     } else {
-      process.env.NEXT_LLM_URL = originalUrl;
+      process.env.UPSTREAM_LLM_URL = originalUrl;
     }
   }
 }
@@ -206,10 +221,12 @@ async function verifyChatCompletionsInvalidJson() {
 async function verifyChatCompletionsSseDone() {
   const { createChatCompletionsHandler } =
     await import('../app/api/chat/completions/route');
-  const originalApiKey = process.env.NEXT_LLM_API_KEY;
-  const originalUrl = process.env.NEXT_LLM_URL;
-  process.env.NEXT_LLM_API_KEY = 'test-key';
-  process.env.NEXT_LLM_URL = 'https://example.test/v1/chat/completions';
+  const originalEchoKey = process.env.ECHOSPHERE_LLM_API_KEY;
+  const originalApiKey = process.env.UPSTREAM_LLM_API_KEY;
+  const originalUrl = process.env.UPSTREAM_LLM_URL;
+  process.env.ECHOSPHERE_LLM_API_KEY = 'test-echosphere-key';
+  process.env.UPSTREAM_LLM_API_KEY = 'test-key';
+  process.env.UPSTREAM_LLM_URL = 'https://example.test/v1/chat/completions';
 
   let capturedBaseUrl: string | undefined;
   let capturedModelId: string | undefined;
@@ -243,6 +260,7 @@ async function verifyChatCompletionsSseDone() {
           messages: [{ role: 'user', content: 'Hi' }],
         }),
         method: 'POST',
+        headers: { Authorization: 'Bearer test-echosphere-key' },
       },
     );
     const response = await handler(request);
@@ -278,15 +296,20 @@ async function verifyChatCompletionsSseDone() {
       'POST /api/chat/completions should stream text chunks as OpenAI-compatible deltas',
     );
   } finally {
-    if (originalApiKey === undefined) {
-      delete process.env.NEXT_LLM_API_KEY;
+    if (originalEchoKey === undefined) {
+      delete process.env.ECHOSPHERE_LLM_API_KEY;
     } else {
-      process.env.NEXT_LLM_API_KEY = originalApiKey;
+      process.env.ECHOSPHERE_LLM_API_KEY = originalEchoKey;
+    }
+    if (originalApiKey === undefined) {
+      delete process.env.UPSTREAM_LLM_API_KEY;
+    } else {
+      process.env.UPSTREAM_LLM_API_KEY = originalApiKey;
     }
     if (originalUrl === undefined) {
-      delete process.env.NEXT_LLM_URL;
+      delete process.env.UPSTREAM_LLM_URL;
     } else {
-      process.env.NEXT_LLM_URL = originalUrl;
+      process.env.UPSTREAM_LLM_URL = originalUrl;
     }
   }
 }
