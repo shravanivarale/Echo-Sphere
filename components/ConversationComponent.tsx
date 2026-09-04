@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AgoraRTC, {
   useRTCClient,
   useLocalMicrophoneTrack,
@@ -31,7 +31,11 @@ import {
   normalizeTimestampMs,
   normalizeTranscript,
 } from '@/lib/conversation';
+import { evaluateInterviewSession } from '@/lib/evaluation';
+import { getRoleConfig } from '@/lib/interview-roles';
+import { getRoleForPhase } from '@/lib/interview-orchestrator';
 import { MicrophoneSelector } from './MicrophoneSelector';
+import { PanelInterviewersCard } from './PanelInterviewersCard';
 import {
   getConversationIssueSeverity,
   type ConnectionIssue,
@@ -46,7 +50,9 @@ import { QuickstartTranscriptPanel } from './QuickstartTranscriptPanel';
 import type { ConversationComponentProps } from '@/types/conversation';
 import {
   InterviewPhase,
+  InterviewRole,
   InterviewSession,
+  InterviewTurn,
   PHASE_LABELS,
   PHASE_ORDER,
   PHASE_THRESHOLDS,
@@ -132,6 +138,9 @@ export default function ConversationComponent({
     sessionId: agoraData.channel,
     agentId: agoraData.agentId,
     currentPhase: InterviewPhase.BACKGROUND,
+    currentRole: InterviewRole.SYSTEM_ARCHITECT,
+    roleSequence: [InterviewRole.SYSTEM_ARCHITECT, InterviewRole.PRODUCT_MANAGER, InterviewRole.SECURITY_LEAD, InterviewRole.SYSTEM_ARCHITECT],
+    roleTransitionHistory: [],
     completedCandidateTurns: 0,
     turns: [],
     status: 'active',
@@ -432,6 +441,46 @@ export default function ConversationComponent({
     });
   }, [messageList, agentUID]);
 
+  const lastEvaluatedTurnRef = useRef<string | null>(null);
+
+  // ── Live Panel Speaker Evaluation & Transition ──────────────────────────────
+  // Triggers server-side speaker evaluation whenever candidate finishes a turn
+  useEffect(() => {
+    const candidateTurns = messageList.filter(
+      (m) => String(m.uid) !== agentUID && m.text && m.text.trim().length > 0,
+    );
+    if (candidateTurns.length === 0) return;
+
+    const latestTurn = candidateTurns[candidateTurns.length - 1];
+    const turnKey = `${latestTurn.turn_id}-${latestTurn.text}`;
+    if (lastEvaluatedTurnRef.current === turnKey) return;
+    lastEvaluatedTurnRef.current = turnKey;
+
+    fetch('/api/interview/panel-speaker', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'evaluate_and_transition',
+        sessionId: session.sessionId,
+        candidateText: latestTurn.text,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.selectedRole) {
+          setSession((prev) => ({
+            ...prev,
+            activeInterviewer: data.selectedRole,
+            currentRole: data.selectedRole,
+            panelSpeakerState: data.speakerState,
+          }));
+        }
+      })
+      .catch((err) => {
+        console.warn('Error executing live panel speaker transition:', err);
+      });
+  }, [messageList, agentUID, session.sessionId]);
+
   // Memoised phase label for rendering
   const phaseLabel = useMemo(
     () => PHASE_LABELS[session.currentPhase],
@@ -527,9 +576,65 @@ export default function ConversationComponent({
 
   useClientEvent(client, 'token-privilege-will-expire', handleTokenWillExpire);
 
+  // Guard against duplicate interview finalization (React StrictMode, remounts, duplicate clicks)
+  const finalizedRef = useRef(false);
+
   const handleEndConversation = useCallback(async () => {
-    onEndConversation();
-  }, [onEndConversation]);
+    if (finalizedRef.current) return;
+    finalizedRef.current = true;
+
+    // Map captured transcript message history to InterviewTurn objects
+    const turns: InterviewTurn[] = messageList.map((m, index) => {
+      const isCandidate = String(m.uid) !== agentUID;
+      return {
+        turnId: String(m.turn_id || `turn-${index}-${m.uid}`),
+        uid: String(m.uid),
+        role: isCandidate ? 'candidate' : 'agent',
+        text: m.text || '',
+        status: String(m.status),
+        timestamp: m.createdAt || Date.now(),
+      };
+    });
+
+    const candidateTurnsCount = turns.filter((t) => t.role === 'candidate').length;
+
+    let finalizedSession: InterviewSession = {
+      ...session,
+      turns,
+      completedCandidateTurns: candidateTurnsCount,
+      status: 'completed',
+      endedAt: new Date().toISOString(),
+    };
+
+    try {
+      // Complete session and execute server-side evaluation via Session API
+      const res = await fetch('/api/interview/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'complete',
+          sessionId: session.sessionId,
+          turns,
+          currentPhase: session.currentPhase,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.session) {
+          finalizedSession = data.session;
+        }
+      } else {
+        console.warn('Server session complete API returned error, using local fallback');
+        finalizedSession.evaluation = evaluateInterviewSession(finalizedSession);
+      }
+    } catch (err) {
+      console.error('Error completing session via server API:', err);
+      finalizedSession.evaluation = evaluateInterviewSession(finalizedSession);
+    }
+
+    onEndConversation(finalizedSession);
+  }, [messageList, agentUID, session, onEndConversation]);
 
   return (
     <QuickstartConversationLayout
@@ -544,18 +649,33 @@ export default function ConversationComponent({
       }
       pipelineMetrics={<QuickstartPipelineMetrics metrics={agentMetrics} />}
       phaseIndicator={
-        <div
-          className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1"
-          role="status"
-          aria-label={`Current interview phase: ${phaseLabel}`}
-          title={`Interview phase: ${phaseLabel}`}
-        >
-          <span className="hidden text-xs font-medium text-muted-foreground sm:inline">
-            Phase
-          </span>
-          <span className="text-xs font-semibold text-foreground">
-            {phaseLabel}
-          </span>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Active Interviewer Role Badge */}
+          <div
+            className="flex shrink-0 items-center gap-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-blue-400"
+            role="status"
+            aria-label={`Current interviewer: ${getRoleConfig(session.currentRole || getRoleForPhase(session.currentPhase)).displayName}`}
+            title={`Interviewer: ${getRoleConfig(session.currentRole || getRoleForPhase(session.currentPhase)).interviewerName} (${getRoleConfig(session.currentRole || getRoleForPhase(session.currentPhase)).displayName})`}
+          >
+            <span className="text-xs font-semibold">
+              {getRoleConfig(session.currentRole || getRoleForPhase(session.currentPhase)).interviewerName} ({getRoleConfig(session.currentRole || getRoleForPhase(session.currentPhase)).displayName})
+            </span>
+          </div>
+
+          {/* Phase Badge */}
+          <div
+            className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 py-1"
+            role="status"
+            aria-label={`Current interview phase: ${phaseLabel}`}
+            title={`Interview phase: ${phaseLabel}`}
+          >
+            <span className="hidden text-xs font-medium text-muted-foreground sm:inline">
+              Phase
+            </span>
+            <span className="text-xs font-semibold text-foreground">
+              {phaseLabel}
+            </span>
+          </div>
         </div>
       }
       transcriptPanel={
@@ -567,10 +687,15 @@ export default function ConversationComponent({
       }
       visualizer={
         <div
-          className="relative flex h-full min-h-[20rem] w-full max-w-4xl items-center justify-center"
+          className="relative flex h-full min-h-[20rem] w-full max-w-4xl flex-col items-center justify-center gap-6"
           role="region"
           aria-label="AI agent status visualization"
         >
+          <PanelInterviewersCard
+            activeRole={session.activeInterviewer || session.currentRole || getRoleForPhase(session.currentPhase)}
+            isAgentSpeaking={agentState === AgentState.SPEAKING}
+            speakerStatus={session.panelSpeakerState?.speakerState}
+          />
           <AgentVisualizer state={visualizerState} size="lg" />
           {remoteUsers.map((user) => (
             <div key={user.uid} className="hidden">

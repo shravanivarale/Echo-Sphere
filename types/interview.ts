@@ -1,13 +1,19 @@
 /**
- * Interview phase definitions for EchoSphere Step 4E.
+ * Interview phase, multi-role & evaluation definitions for EchoSphere (Steps 4E, 5A-D, 6A-B).
  *
- * Phases progress forward-only and are driven by the count of completed
- * candidate turns captured from the Agora transcript pipeline.
- *
- * The phase lives entirely in the browser/client — Agora's Conversational AI
- * agent cannot receive a real-time phase update after it has started, so Ada's
- * phase awareness is encoded in her initial system prompt (Step 4F).
+ * Support for multi-role interviewer panel:
+ *   - SYSTEM_ARCHITECT (Ada)
+ *   - PRODUCT_MANAGER (Alex)
+ *   - SECURITY_LEAD (Marcus)
  */
+
+// ── Role enum ─────────────────────────────────────────────────────────────────
+
+export enum InterviewRole {
+  SYSTEM_ARCHITECT = 'SYSTEM_ARCHITECT',
+  PRODUCT_MANAGER = 'PRODUCT_MANAGER',
+  SECURITY_LEAD = 'SECURITY_LEAD',
+}
 
 // ── Phase enum ────────────────────────────────────────────────────────────────
 
@@ -32,19 +38,6 @@ export const PHASE_ORDER: InterviewPhase[] = [
 ];
 
 // ── Phase entry thresholds ────────────────────────────────────────────────────
-// Minimum number of *completed candidate turns* required to enter each phase.
-// "Completed candidate turn" = a transcript turn where:
-//   - uid !== agentUID  (spoken by the candidate)
-//   - status !== IN_PROGRESS  (the turn has ended, not still streaming)
-//
-// Thresholds are intentionally generous so Ada has time to explore each area
-// before the UI indicator advances:
-//   BACKGROUND:  start of interview (0 turns)
-//   REQUIREMENTS: 2 candidate turns — candidate has introduced themselves
-//   ARCHITECTURE: 4 candidate turns — requirements established
-//   DEEP_DESIGN:  6 candidate turns — high-level design proposed
-//   SCALABILITY_RELIABILITY_SECURITY: 8 turns — deep design covered
-//   TRADE_OFFS:  10 turns — scaling / reliability discussed; stay until end
 
 export const PHASE_THRESHOLDS: Record<InterviewPhase, number> = {
   [InterviewPhase.BACKGROUND]: 0,
@@ -67,32 +60,128 @@ export const PHASE_LABELS: Record<InterviewPhase, string> = {
   [InterviewPhase.TRADE_OFFS]: 'Trade-offs',
 };
 
+// ── Evaluation dimensions ─────────────────────────────────────────────────────
+
+export enum EvaluationDimension {
+  PROBLEM_UNDERSTANDING = 'Problem Understanding',
+  REQUIREMENTS_ANALYSIS = 'Requirements Analysis',
+  ARCHITECTURE_DESIGN = 'Architecture Design',
+  TECHNICAL_DEPTH = 'Technical Depth',
+  SCALABILITY_RELIABILITY = 'Scalability & Reliability',
+  SECURITY = 'Security',
+  TRADE_OFF_REASONING = 'Trade-off Reasoning',
+  COMMUNICATION = 'Communication',
+}
+
+// ── Evaluation score per dimension ───────────────────────────────────────────
+
+export interface EvaluationScore {
+  /** Dimension name */
+  dimension: EvaluationDimension | string;
+  /** Primary interviewer role owning this evaluation dimension */
+  primaryRole?: InterviewRole;
+  /** Score on a 0–10 scale */
+  score: number;
+  /** Short rationale for the score */
+  reasoning: string;
+  /** Turn IDs of candidate transcript turns supporting this score */
+  evidenceTurnIds: string[];
+}
+
+// ── Overall Evaluation result ─────────────────────────────────────────────────
+
+export interface EvaluationResult {
+  /** Overall average score on a 0–10 scale (weighted average of dimension scores) */
+  overallScore: number;
+  /** Individual dimension scores */
+  dimensionScores: EvaluationScore[];
+  /** Highlighted candidate strengths */
+  strengths: string[];
+  /** Areas for improvement */
+  weaknesses: string[];
+  /** Hiring recommendation */
+  recommendation: string;
+}
+
+// ── Individual interview turn ─────────────────────────────────────────────────
+
+export interface InterviewTurn {
+  /** Unique ID for turn deduplication and evidence anchoring */
+  turnId: string;
+  /** RTC UID of speaker */
+  uid: string;
+  /** Speaker role */
+  role: 'candidate' | 'agent';
+  /** Text content of turn */
+  text: string;
+  /** Turn status (e.g. END, INTERRUPTED, IN_PROGRESS) */
+  status: string;
+  /** Unix millisecond timestamp */
+  timestamp: number;
+}
+
+// ── Role Transition Record ───────────────────────────────────────────────────
+
+export interface RoleTransition {
+  fromRole: InterviewRole;
+  toRole: InterviewRole;
+  timestamp: number;
+  reason: string;
+  phase: InterviewPhase;
+}
+
+export type SpeakerStatus = 'IDLE' | 'THINKING' | 'SPEAKING' | 'INTERRUPTED';
+
+export interface PanelSpeakerState {
+  /** Currently active speaker role (SYSTEM_ARCHITECT | PRODUCT_MANAGER | SECURITY_LEAD | NONE) */
+  activeSpeaker: InterviewRole | 'NONE';
+  /** Speaker status lifecycle */
+  speakerState: SpeakerStatus;
+  /** Unix millisecond timestamp of last speaker transition */
+  lastTransitionTimestamp: number;
+  /** Reason for last transition / selection */
+  transitionReason: string;
+}
+
 // ── Session state ─────────────────────────────────────────────────────────────
 
 export interface InterviewSession {
+  /** Canonical sessionId (matches Agora channelName) */
   sessionId: string;
+  /** Candidate full name (required for shared panel context) */
+  candidateName?: string;
+  /** Applied job role ID (e.g. SYSTEM_ARCHITECT, FRONTEND_ARCHITECT) */
+  appliedRole?: string;
+  /** Final edited Job Description text */
+  jobDescription?: string;
+  /** Agora RTC/RTM channel name */
+  channelName?: string;
+  /** Candidate RTC UID */
+  candidateUid?: string;
+  /** Agent ID returned by /api/invite-agent */
   agentId?: string;
-  /** Current interview phase — driving the UI badge and Ada's prompt (static). */
+  /** ISO timestamp when the interview session started */
+  startedAt?: string;
+  /** Current interview phase */
   currentPhase: InterviewPhase;
-  /** Number of completed candidate turns – used for phase progression. */
+  /** Currently active interviewer role */
+  currentRole: InterviewRole;
+  /** Currently active speaker interviewer role in the 3-agent panel */
+  activeInterviewer?: InterviewRole;
+  /** Canonical real-time audio safe panel speaker state */
+  panelSpeakerState?: PanelSpeakerState;
+  /** Planned role sequence for the panel interview */
+  roleSequence: InterviewRole[];
+  /** Log of all executed role transitions */
+  roleTransitionHistory: RoleTransition[];
+  /** Number of completed candidate turns */
   completedCandidateTurns: number;
-  /** All captured turns (candidate + agent) for evaluation. */
+  /** All captured turns (candidate + agent) */
   turns: InterviewTurn[];
-  /** ISO timestamp when the interview was marked completed. */
+  /** ISO timestamp when the interview ended */
   endedAt?: string;
-  /** Evaluation results – populated after finalisation. */
+  /** Evaluation result after finalisation */
   evaluation?: EvaluationResult;
-  /** Session status lifecycle – see STEP 5A. */
+  /** Session status lifecycle */
   status: 'idle' | 'starting' | 'active' | 'completed' | 'failed';
-}
-
-export interface InterviewTurn {
-  role: 'candidate' | 'agent';
-  text: string;
-  timestamp: string;
-}
-
-export interface EvaluationResult {
-  score: number;
-  feedback: string;
 }

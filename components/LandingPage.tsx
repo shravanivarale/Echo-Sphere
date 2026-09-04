@@ -10,9 +10,11 @@ import type {
   AgentResponse,
   AgoraRenewalTokens,
 } from '../types/conversation';
+import type { InterviewSession } from '../types/interview';
 import { ErrorBoundary } from './ErrorBoundary';
 import { LoadingSkeleton } from './LoadingSkeleton';
 import { QuickstartPreCallCard } from './QuickstartPreCallCard';
+import { InterviewResultsView } from './InterviewResultsView';
 
 // Dynamically import the ConversationComponent with ssr disabled
 const ConversationComponent = dynamic(() => import('./ConversationComponent'), {
@@ -56,6 +58,9 @@ const AgoraProvider = dynamic(
 
 export default function LandingPage() {
   const [showConversation, setShowConversation] = useState(false);
+  const [completedSession, setCompletedSession] = useState<InterviewSession | null>(
+    null,
+  );
 
   // Preload heavy modules on mount so they're already cached when the user
   // clicks "Try it Now" — eliminates the ~1.8s dynamic-import delay.
@@ -69,17 +74,20 @@ export default function LandingPage() {
   const [rtmClient, setRtmClient] = useState<RTMClient | null>(null);
   const [agentJoinError, setAgentJoinError] = useState(false);
 
-  const handleStartConversation = async () => {
+  const handleStartConversation = async (formData?: {
+    candidateName: string;
+    appliedRole: string;
+    jobDescription: string;
+  }) => {
     setIsLoading(true);
     setError(null);
     setAgentJoinError(false);
+    setCompletedSession(null);
 
     try {
       // 1. Fetch RTC token + channel
-      // console.log('Fetching Agora token...');
       const agoraResponse = await fetch('/api/generate-agora-token');
       const responseData = await agoraResponse.json();
-      // console.log('Agora token response: uid =', responseData.uid, 'channel =', responseData.channel);
 
       if (!agoraResponse.ok) {
         throw new Error(
@@ -98,7 +106,10 @@ export default function LandingPage() {
           body: JSON.stringify({
             requester_id: responseData.uid,
             channel_name: responseData.channel,
-          } as ClientStartRequest),
+            candidate_name: formData?.candidateName,
+            applied_role: formData?.appliedRole,
+            job_description: formData?.jobDescription,
+          }),
         })
           .then(async (res) => {
             if (!res.ok) {
@@ -122,12 +133,29 @@ export default function LandingPage() {
           );
           await rtm.login({ token: responseData.token });
           await rtm.subscribe(responseData.channel);
-          // console.log('RTM ready, channel:', responseData.channel);
           return rtm;
         })(),
       ]);
 
-      // 3. All dependencies ready — store state and show conversation
+      // 3. Register canonical interview session on server API with candidate context
+      fetch('/api/interview/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create',
+          sessionId: responseData.channel,
+          channelName: responseData.channel,
+          candidateUid: responseData.uid,
+          agentId: agentData?.agent_id,
+          candidateName: formData?.candidateName,
+          appliedRole: formData?.appliedRole,
+          jobDescription: formData?.jobDescription,
+        }),
+      }).catch((err) => {
+        console.error('Failed to register session on server API:', err);
+      });
+
+      // 4. All dependencies ready — store state and show conversation
       setRtmClient(rtm);
       setAgoraData({ ...responseData, agentId: agentData?.agent_id });
       setShowConversation(true);
@@ -147,10 +175,6 @@ export default function LandingPage() {
           throw new Error('Missing channel for token renewal');
         }
 
-        // RTC and RTM tokens are renewed independently:
-        //   - RTC uses the browser client's assigned UID (passed in from ConversationComponent).
-        //   - RTM uses the same UID that was used during RTM login (agoraData.uid).
-        // Both are fetched in parallel to stay within the token-expiry grace-period window.
         const [rtcResponse, rtmResponse] = await Promise.all([
           fetch(`/api/generate-agora-token?channel=${channel}&uid=${uid}`),
           fetch(`/api/generate-agora-token?channel=${channel}&uid=${agoraData.uid}`),
@@ -176,11 +200,10 @@ export default function LandingPage() {
     [agoraData],
   );
 
-  const handleEndConversation = async () => {
+  const handleEndConversation = async (completed?: InterviewSession) => {
     // Stop the AI agent
     if (agoraData?.agentId) {
       try {
-        // console.log('Stopping agent:', agoraData.agentId);
         const response = await fetch('/api/stop-conversation', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -189,7 +212,6 @@ export default function LandingPage() {
         if (!response.ok) {
           console.error('Failed to stop agent:', await response.text());
         }
-        // else console.log('Agent stopped successfully');
       } catch (error) {
         console.error('Error stopping agent:', error);
       }
@@ -199,26 +221,35 @@ export default function LandingPage() {
     rtmClient?.logout().catch((err) => console.error('RTM logout error:', err));
     setRtmClient(null);
     setShowConversation(false);
+
+    if (completed) {
+      setCompletedSession(completed);
+    }
   };
 
   return (
     <div className="relative flex h-dvh min-h-screen flex-col overflow-hidden bg-background text-foreground">
-      {/* Hero shell: either shows the pre-call CTA or swaps in the live conversation experience. */}
+      {/* Main Container */}
       <div
         className={`flex min-h-0 flex-1 flex-col ${
-          showConversation
-            ? 'items-stretch justify-start'
+          showConversation || completedSession
+            ? 'items-stretch justify-start overflow-y-auto'
             : 'items-center justify-center'
         }`}
       >
         <div
           className={`z-10 flex min-h-0 flex-1 flex-col ${
-            showConversation
+            showConversation || completedSession
               ? 'h-full w-full max-w-none items-stretch gap-0 px-0 text-left'
               : 'w-full max-w-none items-center justify-center px-4 text-center'
           }`}
         >
-          {!showConversation ? (
+          {completedSession ? (
+            <InterviewResultsView
+              session={completedSession}
+              onRestart={() => setCompletedSession(null)}
+            />
+          ) : !showConversation ? (
             <QuickstartPreCallCard
               isLoading={isLoading}
               error={error}
@@ -226,14 +257,12 @@ export default function LandingPage() {
             />
           ) : agoraData && rtmClient ? (
             <>
-              {/* Non-fatal invite warning: the browser session can still render even if agent start failed. */}
               {agentJoinError && (
                 <div className="p-3 bg-destructive/10 rounded-md text-destructive text-sm max-w-sm">
                   Failed to connect with AI agent. The conversation may not work
                   as expected.
                 </div>
               )}
-              {/* Browser-only conversation mount: RTC provider, error boundary, and lazy-loaded call UI. */}
               <Suspense fallback={<LoadingSkeleton />}>
                 <ErrorBoundary>
                   <AgoraProvider>
@@ -248,7 +277,6 @@ export default function LandingPage() {
               </Suspense>
             </>
           ) : (
-            /* Fallback if session bootstrap partially succeeded but required state is missing. */
             <p className="text-sm text-muted-foreground">
               Failed to load conversation data.
             </p>
@@ -256,9 +284,9 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* Persistent attribution footer for the pre-call and in-call views. */}
-      <footer className="fixed bottom-0 right-0 z-40 py-4 pr-4 md:py-6 md:pr-6">
-        <div className="flex items-center justify-end gap-2 text-muted-foreground">
+      {/* Persistent attribution footer */}
+      <footer className="fixed bottom-0 right-0 z-40 py-4 pr-4 md:py-6 md:pr-6 pointer-events-none">
+        <div className="flex items-center justify-end gap-2 text-muted-foreground pointer-events-auto">
           <span className="text-xs font-medium tracking-wide uppercase">
             Powered by
           </span>

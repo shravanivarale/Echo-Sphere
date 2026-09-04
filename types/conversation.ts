@@ -1,4 +1,5 @@
 import type { RTMClient } from 'agora-rtm';
+import type { InterviewSession } from './interview';
 
 export interface AgoraTokenData {
   token: string;
@@ -31,5 +32,7 @@ export interface ConversationComponentProps {
   agoraData: AgoraTokenData;
   rtmClient: RTMClient;
   onTokenWillExpire: (uid: string) => Promise<AgoraRenewalTokens>;
-  onEndConversation: () => void;
+  onEndConversation: (completedSession?: InterviewSession) => void;
 }
+
+export type { InterviewSession };

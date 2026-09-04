@@ -11,6 +11,11 @@ import {
 import { ClientStartRequest, AgentResponse } from '@/types/conversation';
 import { DEFAULT_AGENT_UID } from '@/lib/agora';
 
+import { getRoleConfig, InterviewRole } from '@/lib/interview-roles';
+
+import { buildPanelSystemPrompt } from '@/lib/panel-orchestrator';
+import { getSession } from '@/lib/interview-session-store';
+
 // System prompt that defines Ada's personality, phase-by-phase behavior, and
 // strict interview rules. Step 4F: this prompt is the sole mechanism for making
 // Ada phase-aware — the Agora LLM session cannot be mutated after agent start.
@@ -104,8 +109,27 @@ export async function POST(request: NextRequest) {
   try {
     // --- 1. Parse request ---
 
-    const body: ClientStartRequest = await request.json();
-    const { requester_id, channel_name } = body;
+    const body = await request.json();
+    const { requester_id, channel_name, role, candidate_name, applied_role, job_description } = body;
+
+    // Retrieve existing server session context if available
+    const existingSession = channel_name ? getSession(channel_name) : undefined;
+    const candidateName = candidate_name || existingSession?.candidateName;
+    const appliedRole = applied_role || existingSession?.appliedRole;
+    const jobDescription = job_description || existingSession?.jobDescription;
+
+    // Load interviewer role configuration (defaults to SYSTEM_ARCHITECT Ada)
+    const targetRole = role && Object.values(InterviewRole).includes(role) ? (role as InterviewRole) : InterviewRole.SYSTEM_ARCHITECT;
+    const roleConfig = getRoleConfig(targetRole);
+    
+    // Construct dynamic instructions incorporating candidate context if available
+    const instructions = candidateName || jobDescription
+      ? buildPanelSystemPrompt(targetRole, { candidateName, appliedRole, jobDescription })
+      : targetRole === InterviewRole.SYSTEM_ARCHITECT ? ADA_PROMPT : roleConfig.systemPrompt;
+    
+    const greeting = candidateName 
+      ? `Welcome ${candidateName} to EchoSphere. I'm ${roleConfig.interviewerName}, ${roleConfig.displayName} on your interview panel. Let's begin.`
+      : targetRole === InterviewRole.SYSTEM_ARCHITECT ? GREETING : roleConfig.greeting;
 
     // Validate required env vars on first request so misconfiguration surfaces
     // with a clear error message rather than a silent failure.
@@ -133,8 +157,8 @@ export async function POST(request: NextRequest) {
     // Omit vendor API keys for supported models — AgentKit infers reseller presets on start (see Agora Console / billing).
     const agent = new Agent({
       client,
-      instructions: ADA_PROMPT,
-      greeting: GREETING,
+      instructions,
+      greeting,
       failureMessage: 'Please wait a moment.',
       maxHistory: 50,
       // VAD controls how the agent detects the start and end of a user's turn.
@@ -201,7 +225,7 @@ export async function POST(request: NextRequest) {
       .withTts(
         new MiniMaxTTS({
           model: 'speech_2_6_turbo',
-          voiceId: 'English_captivating_female1',
+          voiceId: roleConfig.voiceId,
         }),
         // BYOK — ElevenLabs (set NEXT_ELEVENLABS_API_KEY; optional NEXT_ELEVENLABS_VOICE_ID)
         // new (await import('agora-agents')).ElevenLabsTTS({
@@ -221,6 +245,11 @@ export async function POST(request: NextRequest) {
       expiresIn: ExpiresIn.hours(1),
       debug: false, // enable debug to show restful API calls in the console
     });
+
+    // Non-secret structured server log for live validation
+    console.log(
+      `[InviteAgent] Starting AI Agent: Role="${targetRole}", Interviewer="${roleConfig.interviewerName}", VoiceID="${roleConfig.voiceId}", Channel="${channel_name}", Timestamp="${new Date().toISOString()}"`,
+    );
 
     const agentId = await session.start();
 
