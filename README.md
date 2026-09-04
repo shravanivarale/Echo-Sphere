@@ -12,7 +12,7 @@ Build a production-style voice agent in minutes with Next.js and the Agora Conve
 - [pnpm](https://pnpm.io/installation)
 - [Agora CLI](https://github.com/AgoraIO-Community/cli)
 
-## Run It 
+## Run It
 
 Getting started is quick and easy: install the CLI _(skip if you already have it)_ , scaffold the Next.js quickstart using the Agora CLI, install dependencies, and run.
 
