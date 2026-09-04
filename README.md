@@ -6,7 +6,7 @@
 
 Build a production-style voice agent in minutes with Next.js and the Agora Conversational AI Engine, including voice agent visualizer ([Agent UIKit](https://agoraio-conversational-ai.github.io/agent-uikit/)), live transcript, and real-time pipeline latency via `AGENT_METRICS` ([Agent Toolkit](https://github.com/AgoraIO-Conversational-AI/agent-client-toolkit-ts)).
 
-## Prerequisites
+## Prerequisites 
 
 - [Node.js 22+](https://nodejs.org/en/download/)
 - [pnpm](https://pnpm.io/installation)
