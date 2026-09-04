@@ -195,6 +195,6 @@ Pull requests welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) for developme
 
 Please do **not** open public issues for security reports. Email security@agora.io with details and reproduction steps.
 
-## License
+## License  
 
 Released under the [MIT License](./LICENSE).
