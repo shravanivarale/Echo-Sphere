@@ -192,7 +192,6 @@ NEXT_ELEVENLABS_VOICE_ID=...
 Pull requests welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and conventions.
 
 ## Security
-
 Please do **not** open public issues for security reports. Email security@agora.io with details and reproduction steps.
 
 ## License
