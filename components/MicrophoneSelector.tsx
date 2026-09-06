@@ -89,8 +89,22 @@ export function MicrophoneSelector({
 
           // Auto-switch to new device if it's active
           if (changedDevice.state === 'ACTIVE' && localMicrophoneTrack) {
-            await localMicrophoneTrack.setDevice(changedDevice.device.deviceId);
+            try {
+              await localMicrophoneTrack.setDevice(changedDevice.device.deviceId);
+            } catch (err) {
+              // Suppress group mismatch errors (e.g., "Headphones (Realtek(R) Audio) is not the same group")
+              const msg = err instanceof Error ? err.message : String(err);
+              if (!msg.includes('not the same group')) {
+                console.error('Error changing microphone device:', err);
+              }
+            }
             setCurrentDeviceId(changedDevice.device.deviceId);
+          } else if (
+            changedDevice.device.label ===
+            "Default - Microphone (Realtek(R) Audio)" &&
+            currentDeviceId === "Default - Microphone (Realtek(R) Audio)"
+          ) {
+            // do nothing – keep current device
           } else if (
             changedDevice.device.label ===
               localMicrophoneTrack?.getTrackLabel() &&

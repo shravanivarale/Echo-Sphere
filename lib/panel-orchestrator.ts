@@ -190,7 +190,7 @@ export function buildPanelSystemPrompt(
     ? `- **Interview Focus**: ${jobRoleDef.interviewFocus}\n`
     : '';
 
-  return `You are **${roleConfig.interviewerName}**, the ${roleConfig.displayName} on a 3-person AI technical interview panel at EchoSphere.
+  return `You are **${roleConfig.interviewerName}**, the ${roleConfig.displayName} on a 3-person AI technical interview panel at Shravya.
 
 # Shared Panel Context
 - **Candidate Name**: ${candidateName}

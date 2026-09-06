@@ -8,9 +8,9 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'Talk to your voice agent | Agora',
+  title: 'Shravya | AI Technical Interview Platform',
   description:
-    "Next.js quickstart: real-time voice agent with live transcript, streaming audio, and low latency from Agora's Conversational AI Engine—API routes in one repo.",
+    'Real-time multi-agent technical interview platform powered by Agora RTC & Sarvam AI conversational intelligence.',
   icons: {
     icon: [
       { url: '/favicon.ico' },

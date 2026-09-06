@@ -182,7 +182,7 @@ export default function ConversationComponent({
         );
         const enVoices = voices.filter((v) => v.lang.startsWith('en'));
 
-        if (expertName === 'Neerja') {
+        if (expertName === 'Shravya' || expertName === 'Neerja') {
           const femaleVoice =
             inVoices.find(
               (v) =>
@@ -736,67 +736,24 @@ export default function ConversationComponent({
   const candidateBufferRef = useRef<string[]>([]);
   const turnDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isTurnInFlightRef = useRef(false);
-
-  // ── Live Panel Speaker Evaluation & Transition ──────────────────────────────
-  // Buffers candidate speech fragments, waits for 1.8s of candidate silence (turn completion),
-  // and dispatches exactly ONE consolidated turn to the central panel orchestrator.
+  // Mirror of serverTurns in a ref so the echo-check in the debounce effect
+  // can read the latest value WITHOUT adding serverTurns to the effect's
+  // dependency array (which would cause React to cancel the pending timer
+  // every time a new server turn is appended).
+  const serverTurnsRef = useRef(serverTurns);
   useEffect(() => {
-    const candidateTurns = messageList.filter(
-      (m) => isCandidateTurn(m.uid) && m.text && m.text.trim().length > 0,
-    );
-    if (candidateTurns.length === 0) return;
+    serverTurnsRef.current = serverTurns;
+  }, [serverTurns]);
 
-    if (isTurnInFlightRef.current) {
-      return;
-    }
-
-    const latestTurn = candidateTurns[candidateTurns.length - 1];
-    const turnKey = `${latestTurn.turn_id ?? ''}-${latestTurn.text}`;
-    if (lastEvaluatedTurnRef.current === turnKey) return;
-    lastEvaluatedTurnRef.current = turnKey;
-
-    const lowerText = latestTurn.text.toLowerCase().trim();
-    if (
-      lowerText.length < 3 ||
-      lowerText.includes('welcome to echosphere') ||
-      lowerText.includes('i am neerja') ||
-      lowerText.includes('system architect for today') ||
-      lowerText.includes('introduction about yourself')
-    ) {
-      // Acoustic echo of Neerja's opening greeting picked up by microphone — skip to avoid loop
-      return;
-    }
-
-    // Check if the candidate text echoes any question or greeting previously uttered by an interviewer
-    const isInterviewerEcho = serverTurns.some((st) => {
-      const stClean = st.text.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
-      const turnClean = lowerText.replace(/[^a-z0-9 ]/g, '').trim();
-      if (stClean.length === 0 || turnClean.length === 0) return false;
-      const snippet = turnClean.slice(0, Math.min(30, turnClean.length));
-      return stClean.includes(snippet);
-    });
-
-    if (isInterviewerEcho) {
-      console.log('[TurnArbitrator] Suppressed speaker acoustic echo from mic:', latestTurn.text);
-      return;
-    }
-
-    // Accumulate candidate speech fragment
-    candidateBufferRef.current.push(latestTurn.text);
-
-    // Reset debounce timer — wait for 1.8s of candidate silence before invoking panel
-    if (turnDebounceTimerRef.current) {
-      clearTimeout(turnDebounceTimerRef.current);
-    }
-
-    turnDebounceTimerRef.current = setTimeout(() => {
-      if (isTurnInFlightRef.current || isAudioPlaying) return;
-
-      const fullCandidateText = candidateBufferRef.current.join(' ').trim();
-      candidateBufferRef.current = [];
-      if (fullCandidateText.length < 3) return;
-
+  // Sends a completed candidate turn to the panel orchestrator API and plays the response.
+  const dispatchPanelTurn = useCallback(
+    (fullCandidateText: string) => {
+      if (isTurnInFlightRef.current) {
+        console.warn('[PanelTurn] In-flight guard blocked dispatch (should not happen here)');
+        return;
+      }
       isTurnInFlightRef.current = true;
+      console.log('[PanelTurn] Fetching panel-turn for:', fullCandidateText.slice(0, 80));
 
       fetch('/api/interview/panel-turn', {
         method: 'POST',
@@ -807,8 +764,12 @@ export default function ConversationComponent({
           userSpeechText: fullCandidateText,
         }),
       })
-        .then((res) => res.json())
+        .then((res) => {
+          console.log('[PanelTurn] API response status:', res.status);
+          return res.json();
+        })
         .then((data) => {
+          console.log('[PanelTurn] API data:', { success: data.success, role: data.role, hasText: !!data.responseText, hasAudio: !!data.audioBase64, error: data.error });
           if (data.success && data.role) {
             const roleConfig = getRoleConfig(data.role);
             setSession((prev) => ({
@@ -833,27 +794,113 @@ export default function ConversationComponent({
               });
             }
 
+            console.log('[PanelTurn] Enqueueing audio for:', data.selectedExpert);
             enqueueAudio({
               audioBase64: data.audioBase64,
               textFallback: data.responseText,
               expertName: data.selectedExpert || roleConfig.interviewerName,
             });
+          } else {
+            console.warn('[PanelTurn] Response missing success/role:', data);
           }
         })
         .catch((err) => {
-          console.warn('Error executing central panel turn orchestrator:', err);
+          console.error('[PanelTurn] Fetch failed:', err);
         })
         .finally(() => {
           isTurnInFlightRef.current = false;
+          console.log('[PanelTurn] In-flight reset to false');
         });
-    }, 750);
+    },
+    [session.sessionId, enqueueAudio],
+  );
 
-    return () => {
-      if (turnDebounceTimerRef.current) {
-        clearTimeout(turnDebounceTimerRef.current);
+  // ── Live Panel Speaker Evaluation & Transition ──────────────────────────────
+  useEffect(() => {
+    const candidateTurns = messageList.filter(
+      (m) => isCandidateTurn(m.uid) && m.text && m.text.trim().length > 0,
+    );
+    if (candidateTurns.length === 0) return;
+
+    const latestTurn = candidateTurns[candidateTurns.length - 1];
+    const turnKey = `${latestTurn.turn_id ?? ''}-${latestTurn.text}`;
+
+    if (lastEvaluatedTurnRef.current === turnKey) {
+      console.log('[TurnDispatch] Already evaluated, skipping:', turnKey.slice(0, 60));
+      return;
+    }
+
+    const lowerText = latestTurn.text.toLowerCase().trim();
+    if (
+      lowerText.length < 3 ||
+      lowerText.includes('welcome to shravya') ||
+      lowerText.includes('welcome to echosphere') ||
+      lowerText.includes('i am shravya') ||
+      lowerText.includes('i am neerja') ||
+      lowerText.includes('system architect for today') ||
+      lowerText.includes('introduction about yourself')
+    ) {
+      console.log('[TurnDispatch] Echo-phrase blocked:', lowerText.slice(0, 60));
+      lastEvaluatedTurnRef.current = turnKey;
+      return;
+    }
+
+    // Only suppress if the snippet is long enough to be a real echo (≥50 chars),
+    // otherwise short answers like "Okay" or "Yes" are falsely suppressed.
+    const isInterviewerEcho = lowerText.length >= 50 && serverTurnsRef.current.some((st) => {
+      const stClean = st.text.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+      const turnClean = lowerText.replace(/[^a-z0-9 ]/g, '').trim();
+      if (stClean.length === 0 || turnClean.length === 0) return false;
+      const snippet = turnClean.slice(0, Math.min(50, turnClean.length));
+      return stClean.includes(snippet);
+    });
+
+    if (isInterviewerEcho) {
+      console.log('[TurnDispatch] Interviewer echo suppressed:', latestTurn.text.slice(0, 80));
+      lastEvaluatedTurnRef.current = turnKey;
+      return;
+    }
+
+    // Mark as seen AFTER all early-exit checks
+    lastEvaluatedTurnRef.current = turnKey;
+    candidateBufferRef.current.push(latestTurn.text);
+
+    console.log('[TurnDispatch] New candidate turn buffered:', latestTurn.text.slice(0, 80));
+
+    // Clear any existing debounce but do NOT return a cleanup function —
+    // returning cleanup causes React to cancel this timer when the effect
+    // re-runs due to unrelated state changes (e.g. serverTurns updating).
+    if (turnDebounceTimerRef.current) {
+      clearTimeout(turnDebounceTimerRef.current);
+    }
+
+    turnDebounceTimerRef.current = setTimeout(() => {
+      const fullCandidateText = candidateBufferRef.current.join(' ').trim();
+      candidateBufferRef.current = [];
+
+      if (fullCandidateText.length < 3) {
+        console.log('[TurnDispatch] Buffer too short after debounce, skipping.');
+        return;
       }
-    };
-  }, [messageList, session.sessionId, isCandidateTurn, enqueueAudio, isAudioPlaying, serverTurns]);
+
+      if (isTurnInFlightRef.current) {
+        console.log('[TurnDispatch] In-flight, deferring 1s...');
+        turnDebounceTimerRef.current = setTimeout(() => {
+          console.log('[TurnDispatch] Deferred dispatch firing:', fullCandidateText.slice(0, 60));
+          dispatchPanelTurn(fullCandidateText);
+        }, 1000);
+        return;
+      }
+
+      console.log('[TurnDispatch] Dispatching turn:', fullCandidateText.slice(0, 80));
+      dispatchPanelTurn(fullCandidateText);
+    }, 1500);
+
+    // ⚠️ No cleanup return here — intentional. React cleanup would cancel the
+    // pending setTimeout whenever this effect re-runs (e.g. after serverTurns
+    // or dispatchPanelTurn reference changes), permanently dropping the turn.
+  }, [messageList, isCandidateTurn, dispatchPanelTurn]);
+
 
   // Memoised phase label for rendering
   const phaseLabel = useMemo(

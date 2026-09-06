@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
+import Image from 'next/image';
+import { User } from 'lucide-react';
 
 type TranscriptMessage = {
   turn_id?: string | number;
@@ -25,11 +27,23 @@ function formatMessageTime(createdAt?: number) {
   }).format(new Date(createdAt));
 }
 
-const PANELIST_LABELS: Record<string, { name: string; color: string }> = {
-  '1001': { name: 'Neerja (System Architect)', color: 'text-foreground' },
-  '1002': { name: 'Prabhat (Product Manager)', color: 'text-foreground' },
-  '1003': { name: 'Madhur (Security Lead)', color: 'text-foreground' },
+const PANELIST_LABELS: Record<string, { name: string; avatar: string }> = {
+  '1001': { name: 'Neerja (System Architect)', avatar: '/shravya.jpg' },
+  '1002': { name: 'Prabhat (Product Manager)', avatar: '/prabhat.jpg' },
+  '1003': { name: 'Madhur (Security Lead)', avatar: '/madhur.jpg' },
 };
+
+function getInterviewerAvatar(speakerName?: string, uidStr?: string): string {
+  if (uidStr && PANELIST_LABELS[uidStr]) {
+    return PANELIST_LABELS[uidStr].avatar;
+  }
+  if (speakerName) {
+    if (speakerName.includes('Prabhat')) return '/prabhat.jpg';
+    if (speakerName.includes('Madhur')) return '/madhur.jpg';
+    if (speakerName.includes('Neerja') || speakerName.includes('Shravya')) return '/shravya.jpg';
+  }
+  return '/shravya.jpg';
+}
 
 export function QuickstartTranscriptPanel({
   messageList,
@@ -98,24 +112,44 @@ export function QuickstartTranscriptPanel({
 
             const text = message.text?.trim();
             const time = formatMessageTime(message.createdAt);
+            const avatarUrl = isAgent ? getInterviewerAvatar(message.speakerName, uidStr) : null;
 
             return (
               <article
                 key={`${message.turn_id ?? message.uid}-${index}`}
-                className={`flex flex-col ${isAgent ? 'items-start' : 'items-end'}`}
+                className={`flex gap-2.5 ${isAgent ? 'flex-row items-start' : 'flex-row-reverse items-start'}`}
               >
-                <div className={`mb-1 flex items-center gap-2 px-1 text-xs ${labelColor}`}>
-                  <span>{label}</span>
-                  {time && <span className="font-normal text-muted-foreground">{time}</span>}
-                </div>
-                <div
-                  className={`max-w-full whitespace-pre-wrap rounded-xl border px-3.5 py-2 text-sm leading-6 shadow-sm ${
-                    isAgent
-                      ? 'border-border bg-card text-foreground'
-                      : 'border-primary/30 bg-primary/10 text-foreground'
-                  }`}
-                >
-                  {text || '...'}
+                {/* Avatar Icon / Photo */}
+                {isAgent ? (
+                  <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full border border-primary/40 mt-1">
+                    <Image
+                      src={avatarUrl || '/shravya.jpg'}
+                      alt={label}
+                      fill
+                      sizes="28px"
+                      className="object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-primary/40 bg-primary/20 text-primary mt-1">
+                    <User className="h-4 w-4" />
+                  </div>
+                )}
+
+                <div className={`flex flex-col max-w-[85%] ${isAgent ? 'items-start' : 'items-end'}`}>
+                  <div className={`mb-1 flex items-center gap-2 px-1 text-xs ${labelColor}`}>
+                    <span>{label}</span>
+                    {time && <span className="font-normal text-muted-foreground">{time}</span>}
+                  </div>
+                  <div
+                    className={`whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm leading-6 shadow-sm ${
+                      isAgent
+                        ? 'border border-border bg-card/90 text-foreground'
+                        : 'border border-primary/30 bg-primary/10 text-foreground'
+                    }`}
+                  >
+                    {text || '...'}
+                  </div>
                 </div>
               </article>
             );

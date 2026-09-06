@@ -18,11 +18,13 @@ export async function POST(req: NextRequest) {
     // Session opening greeting action
     if (action === 'greeting') {
       const greetingText =
-        'Hi there, welcome to EchoSphere! I am Neerja, your System Architect for today, along with Prabhat and Madhur. Could you start by giving us a quick introduction about yourself?';
+        'Hi there, welcome to Shravya! I am Neerja, your System Architect for today, along with Prabhat and Madhur. Could you start by giving us a quick introduction about yourself?';
 
       const existingTurns = PanelLedger.getTurns(targetSessionId);
       const alreadyHasGreeting = existingTurns.some(
-        (t) => t.role === 'Neerja' && t.content.includes('welcome to EchoSphere'),
+        (t) =>
+          (t.role === 'Neerja' || t.role === 'Shravya') &&
+          (t.content.includes('welcome to Shravya') || t.content.includes('welcome to EchoSphere')),
       );
       if (!alreadyHasGreeting) {
         PanelLedger.append(targetSessionId, {

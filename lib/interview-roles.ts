@@ -24,6 +24,7 @@ export interface RoleConfig {
   displayName: string;
   interviewerName: string;
   gender: 'female' | 'male';
+  avatarUrl: string;
   description: string;
   objectives: string[];
   allowedPhases: InterviewPhase[];
@@ -39,7 +40,7 @@ export interface RoleConfig {
 
 // ── Role Prompts ─────────────────────────────────────────────────────────────
 
-const SYSTEM_ARCHITECT_PROMPT = `You are **Neerja**, the System Architect interviewer on the **EchoSphere** AI interview panel.
+const SYSTEM_ARCHITECT_PROMPT = `You are **Neerja**, the System Architect interviewer on the **Shravya** AI interview panel.
 
 # Role & Identity
 You are a senior Staff-level distributed systems architect based in India. You speak in a calm, confident, and professional Indian English accent and cadence.
@@ -52,7 +53,7 @@ You are a senior Staff-level distributed systems architect based in India. You s
 5. **Candidate Name**: Use the candidate's name naturally when opening or transitioning.
 6. **Focus Area**: Evaluate component boundaries, database selection, caching strategies, message queues, and architectural trade-offs.`;
 
-const PRODUCT_MANAGER_PROMPT = `You are **Prabhat**, the Product Manager interviewer on the **EchoSphere** AI interview panel.
+const PRODUCT_MANAGER_PROMPT = `You are **Prabhat**, the Product Manager interviewer on the **Shravya** AI interview panel.
 
 # Role & Identity
 You are a Lead Product Manager based in India. You speak with a warm, energetic, and collaborative Indian English tone, focusing on user needs, scale, and business metrics.
@@ -65,7 +66,7 @@ You are a Lead Product Manager based in India. You speak with a warm, energetic,
 5. **Candidate Name**: Use the candidate's name naturally when probing assumptions.
 6. **Focus Area**: Probe functional requirements, target user personas, traffic scale (QPS/SLA), and feature prioritization.`;
 
-const SECURITY_LEAD_PROMPT = `You are **Madhur**, the Security & Reliability Lead interviewer on the **EchoSphere** AI interview panel.
+const SECURITY_LEAD_PROMPT = `You are **Madhur**, the Security & Reliability Lead interviewer on the **Shravya** AI interview panel.
 
 # Role & Identity
 You are a Principal Security Architect based in India. You speak in a composed, analytical, and sharp Indian English cadence, probing system resilience and safety.
@@ -87,6 +88,7 @@ export const ROLE_CONFIGS: Record<InterviewRole, RoleConfig> = {
     displayName: 'System Architect',
     interviewerName: 'Neerja',
     gender: 'female',
+    avatarUrl: '/shravya.jpg',
     sarvamSpeaker: 'priya', // bulbul:v3 female voice
     voiceId: 'priya',
     azureVoiceName: 'en-IN-NeerjaNeural',
@@ -106,7 +108,7 @@ export const ROLE_CONFIGS: Record<InterviewRole, RoleConfig> = {
     ],
     systemPrompt: SYSTEM_ARCHITECT_PROMPT,
     greeting:
-      "Hi there, welcome to EchoSphere! I am Neerja, your System Architect for today, along with Prabhat and Madhur. Could you start by giving us a quick introduction about yourself?",
+      "Hi there, welcome to Shravya! I am Neerja, your System Architect for today, along with Prabhat and Madhur. Could you start by giving us a quick introduction about yourself?",
     ownedDimensions: [
       EvaluationDimension.ARCHITECTURE_DESIGN,
       EvaluationDimension.TECHNICAL_DEPTH,
@@ -119,6 +121,7 @@ export const ROLE_CONFIGS: Record<InterviewRole, RoleConfig> = {
     displayName: 'Product Manager',
     interviewerName: 'Prabhat',
     gender: 'male',
+    avatarUrl: '/prabhat.jpg',
     sarvamSpeaker: 'shubh', // bulbul:v3 male voice
     voiceId: 'shubh',
     azureVoiceName: 'en-IN-PrabhatNeural',
@@ -133,7 +136,7 @@ export const ROLE_CONFIGS: Record<InterviewRole, RoleConfig> = {
     allowedPhases: [InterviewPhase.REQUIREMENTS],
     systemPrompt: PRODUCT_MANAGER_PROMPT,
     greeting:
-      "Hi, I am Prabhat, Product Manager on your EchoSphere panel. Great to have you here. Let us dig into the requirements side of things.",
+      "Hi, I am Prabhat, Product Manager on your Shravya panel. Great to have you here. Let us dig into the requirements side of things.",
     ownedDimensions: [
       EvaluationDimension.PROBLEM_UNDERSTANDING,
       EvaluationDimension.REQUIREMENTS_ANALYSIS,
@@ -145,6 +148,7 @@ export const ROLE_CONFIGS: Record<InterviewRole, RoleConfig> = {
     displayName: 'Security & Reliability Lead',
     interviewerName: 'Madhur',
     gender: 'male',
+    avatarUrl: '/madhur.jpg',
     sarvamSpeaker: 'aditya', // bulbul:v3 male voice (distinct from shubh)
     voiceId: 'aditya',
     azureVoiceName: 'hi-IN-MadhurNeural',
@@ -159,7 +163,7 @@ export const ROLE_CONFIGS: Record<InterviewRole, RoleConfig> = {
     allowedPhases: [InterviewPhase.SCALABILITY_RELIABILITY_SECURITY],
     systemPrompt: SECURITY_LEAD_PROMPT,
     greeting:
-      "Hi, I am Madhur, Security and Reliability Lead on your EchoSphere panel. I will be looking at resilience, failure handling, and security.",
+      "Hi, I am Madhur, Security and Reliability Lead on your Shravya panel. I will be looking at resilience, failure handling, and security.",
     ownedDimensions: [
       EvaluationDimension.SCALABILITY_RELIABILITY,
       EvaluationDimension.SECURITY,

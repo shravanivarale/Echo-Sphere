@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import Image from 'next/image';
 import { Loader2, Briefcase, FileText, UploadCloud, CheckCircle2, X, FileCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getAllJobRoles, getJobRoleById, type JobRoleDefinition } from '@/lib/job-roles';
@@ -49,6 +50,12 @@ export function QuickstartPreCallCard({
     setIsParsing(true);
 
     try {
+      // Reject PDF files (currently cause parsing error)
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        setValidationError('PDF uploads are currently not supported. Please use DOCX or TXT.');
+        setIsParsing(false);
+        return;
+      }
       const formData = new FormData();
       formData.append('file', file);
 
@@ -57,9 +64,27 @@ export function QuickstartPreCallCard({
         body: formData,
       });
 
-      const data = await res.json();
+      // If the response is not OK, read the body as text first and try to extract a useful error message
+      if (!res.ok) {
+        let errorMessage = 'Failed to parse resume (non‑JSON response)';
+        const errText = await res.text();
+        try {
+          const parsed = JSON.parse(errText);
+          if (parsed && typeof parsed.error === 'string') {
+            errorMessage = parsed.error;
+          } else {
+            errorMessage = errText;
+          }
+        } catch {
+          // Not JSON – use raw text (could be plain error string)
+          if (errText) errorMessage = errText;
+        }
+        throw new Error(errorMessage);
+      }
 
-      if (!res.ok || !data.success) {
+      // Parse JSON only when the response is successful
+      const data = await res.json();
+      if (!data.success) {
         throw new Error(data.error || 'Failed to parse resume');
       }
 
@@ -133,18 +158,69 @@ export function QuickstartPreCallCard({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mx-auto flex w-[min(94vw,34rem)] animate-fade-up flex-col rounded-[20px] border border-border bg-card px-6 py-8 text-left shadow-[0_12px_32px_rgba(11,18,32,0.6)] md:px-8 md:py-8"
+      className="mx-auto flex w-[min(94vw,36rem)] animate-fade-up flex-col rounded-[24px] border border-border bg-card px-6 py-7 text-left shadow-[0_16px_40px_rgba(11,18,32,0.7)] md:px-8 md:py-8"
       style={{
         backgroundImage:
-          'linear-gradient(180deg, rgba(34,211,238,0.03) 0%, rgba(21,31,50,0.95) 100%)',
+          'linear-gradient(180deg, rgba(34,211,238,0.04) 0%, rgba(21,31,50,0.98) 100%)',
       }}
     >
-      <div className="flex items-center justify-between border-b border-border pb-4">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">EchoSphere Interview Panel</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            3-Agent AI Technical Panel (Neerja, Prabhat, Madhur)
-          </p>
+      {/* Brand Header with Logo & Agent Avatars */}
+      <div className="flex flex-col gap-4 border-b border-border pb-5">
+        <div className="flex items-center justify-between">
+          <div className="relative h-12 w-44">
+            <Image
+              src="/shravya-logo.png"
+              alt="Shravya - AI Technical Interview Platform"
+              fill
+              className="object-contain object-left"
+              priority
+            />
+          </div>
+          <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
+            3-Agent Voice Panel
+          </span>
+        </div>
+
+        {/* Panelists Showcase with real photos */}
+        <div className="grid grid-cols-3 gap-2 rounded-xl border border-border/60 bg-muted/20 p-2.5">
+          <div className="flex items-center gap-2">
+            <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-cyan-400/60 ring-1 ring-cyan-400/30">
+              <Image src="/shravya.jpg" alt="Neerja" fill className="object-cover" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1">
+                <span className="truncate text-xs font-bold text-foreground">Neerja</span>
+                <span className="text-[8px] font-bold text-cyan-400 bg-cyan-950/60 px-1 rounded">F</span>
+              </div>
+              <p className="truncate text-[10px] text-muted-foreground">Architect</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-indigo-400/60 ring-1 ring-indigo-400/30">
+              <Image src="/prabhat.jpg" alt="Prabhat" fill className="object-cover" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1">
+                <span className="truncate text-xs font-bold text-foreground">Prabhat</span>
+                <span className="text-[8px] font-bold text-indigo-400 bg-indigo-950/60 px-1 rounded">M</span>
+              </div>
+              <p className="truncate text-[10px] text-muted-foreground">Product</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-emerald-400/60 ring-1 ring-emerald-400/30">
+              <Image src="/madhur.jpg" alt="Madhur" fill className="object-cover" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1">
+                <span className="truncate text-xs font-bold text-foreground">Madhur</span>
+                <span className="text-[8px] font-bold text-emerald-400 bg-emerald-950/60 px-1 rounded">M</span>
+              </div>
+              <p className="truncate text-[10px] text-muted-foreground">Security</p>
+            </div>
+          </div>
         </div>
       </div>
 

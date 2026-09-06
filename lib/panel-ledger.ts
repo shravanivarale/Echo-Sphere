@@ -6,7 +6,7 @@
  */
 
 export interface PanelTurn {
-  role: 'User' | 'Neerja' | 'Prabhat' | 'Madhur';
+  role: 'User' | 'Shravya' | 'Prabhat' | 'Madhur' | 'Neerja';
   content: string;
   timestamp?: string;
 }

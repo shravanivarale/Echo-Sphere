@@ -18,6 +18,7 @@ export interface PersonaResponseResult {
 }
 
 const NAME_TO_ROLE: Record<string, InterviewRole> = {
+  Shravya: InterviewRole.SYSTEM_ARCHITECT,
   Neerja: InterviewRole.SYSTEM_ARCHITECT,
   Prabhat: InterviewRole.PRODUCT_MANAGER,
   Madhur: InterviewRole.SECURITY_LEAD,
@@ -30,10 +31,11 @@ export async function generateExpertAudioTurn(
 ): Promise<PersonaResponseResult> {
   const role = NAME_TO_ROLE[expertName] || InterviewRole.SYSTEM_ARCHITECT;
   const roleConfig = ROLE_CONFIGS[role];
+  const canonicalName = roleConfig.interviewerName;
   const session = getSession(sessionId);
 
   const candidateName = session?.candidateName || 'Candidate';
-  const appliedRole = session?.appliedRole || 'Senior Distributed Systems Engineer';
+  const appliedRole = session?.appliedRole || 'Senior Engineer';
   const jobDescription = session?.jobDescription || 'Designing high-scale, resilient backend systems.';
   const resumeText = session?.resumeText || '';
 
@@ -82,7 +84,12 @@ Here is everything that has been said in this interview so far across all paneli
 ${fullTranscript}
 """
 
-Respond naturally as ${expertName} in 1-2 concise spoken sentences, addressing ${candidateName} when appropriate, acknowledging the context and probing the next relevant technical or product requirement. Do not prefix your answer with your name.`,
+Respond naturally as ${canonicalName} in 1-2 concise spoken sentences. You MUST:
+1. Directly acknowledge or briefly react to what the candidate JUST said (do not ignore their last message).
+2. Then ask exactly ONE focused follow-up question that probes deeper into what they said or the next relevant technical/product detail.
+3. Sound like a real interviewer — conversational, warm, but technically sharp. No filler phrases like "That's great!" or "Excellent!".
+4. Address ${candidateName} by name occasionally (but not every time).
+5. Do NOT prefix your answer with your own name or title.`,
             },
           ],
           temperature: 0.7,
@@ -192,16 +199,18 @@ Respond naturally as ${expertName} in 1-2 concise spoken sentences, addressing $
       lowerUser.includes('outage') ||
       lowerUser.includes('resilience');
 
+    const isSystemArchitect = expertName === 'Shravya' || expertName === 'Neerja';
+
     if (isAvCheck) {
-      if (expertName === 'Neerja') {
-        responseText = `Yes, we can hear you loud and clear! EchoSphere is an audio-first interview panel, so video is not required. Whenever you're ready, please share a brief introduction about yourself and your background.`;
+      if (isSystemArchitect) {
+        responseText = `Yes, we can hear you loud and clear! Shravya is an audio-first interview panel, so video is not required. Whenever you're ready, please share a brief introduction about yourself and your background.`;
       } else if (expertName === 'Prabhat') {
         responseText = `Yes, we are right here and hearing you well. Whenever you are ready, let us know so we can jump into the system scope and product requirements.`;
       } else {
         responseText = `Yes, the audio link is loud and clear. Let us know when you are ready to proceed with the technical discussion.`;
       }
     } else if (isResumeCheck) {
-      if (expertName === 'Neerja') {
+      if (isSystemArchitect) {
         responseText = `Yes, we have your resume with us. We would love to hear in your own words about your primary technical stack and the most challenging distributed backend project you have built.`;
       } else if (expertName === 'Prabhat') {
         responseText = `Yes, we reviewed your profile. To begin, could you walk us through a project where you had to balance feature delivery with heavy traffic or strict SLAs?`;
@@ -209,7 +218,7 @@ Respond naturally as ${expertName} in 1-2 concise spoken sentences, addressing $
         responseText = `Yes, your resume is right in front of us. When you are ready, we can dive straight into your architecture and system design.`;
       }
     } else if (isClarification) {
-      if (expertName === 'Neerja') {
+      if (isSystemArchitect) {
         responseText = `Sure. We are designing a high-throughput real-time system. How would you structure your database schema, data partitioning, and caching strategy?`;
       } else if (expertName === 'Prabhat') {
         responseText = `No problem. Looking at the functional requirements, what are the primary user journeys and peak throughput targets you would plan for?`;
@@ -217,12 +226,13 @@ Respond naturally as ${expertName} in 1-2 concise spoken sentences, addressing $
         responseText = `Of course. Coming to security, how do you handle authentication, OAuth2 token validation, and API rate limiting under peak traffic?`;
       }
     } else if (isIntroduction) {
-      if (expertName === 'Prabhat') {
-        responseText = `Great to meet you! To kick off our system design, let us define the product scope. What are the key user flows and expected peak throughput for this system?`;
-      } else if (expertName === 'Madhur') {
-        responseText = `Welcome! I will be looking closely at security and reliability. Once we outline the core design, we will explore threat vectors and failover strategies.`;
+      // After greeting, always ask about background/experience/projects — not system design scope
+      if (isSystemArchitect) {
+        responseText = `Thanks for the introduction, ${candidateName}! Could you walk us through one or two projects you have worked on recently that you are most proud of, and the tech stack you used?`;
+      } else if (expertName === 'Prabhat') {
+        responseText = `Great to have you here! I am curious — in your recent work, how did you prioritize features or deliverables when you had competing requirements or tight deadlines?`;
       } else {
-        responseText = `Great to have you with us! Let us dive into the system design. How would you approach the high-level architecture and component boundaries?`;
+        responseText = `Good to meet you, ${candidateName}. Before we dive into technical questions, could you share an instance where you had to think about data security or system reliability in one of your past projects?`;
       }
     } else if (expertName === 'Prabhat') {
       if (mentionsScale) {
@@ -247,7 +257,7 @@ Respond naturally as ${expertName} in 1-2 concise spoken sentences, addressing $
         responseText = `Understood. What threat modeling and defensive access controls would you establish to protect our backend APIs?`;
       }
     } else {
-      // Neerja (System Architect)
+      // Shravya (System Architect)
       if (mentionsCache) {
         responseText = `Fair point on caching. What eviction policies, TTL settings, and cache invalidation strategies do you implement to avoid stale data and cache stampedes?`;
       } else if (mentionsData) {
@@ -262,14 +272,16 @@ Respond naturally as ${expertName} in 1-2 concise spoken sentences, addressing $
     }
   }
 
+  const finalExpertName = expertName === 'Neerja' ? 'Shravya' : expertName;
+
   // Commit expert response back to shared ledger
   PanelLedger.append(sessionId, {
-    role: expertName as 'Neerja' | 'Prabhat' | 'Madhur',
+    role: finalExpertName as 'Shravya' | 'Prabhat' | 'Madhur',
     content: responseText,
   });
 
   return {
-    expertName,
+    expertName: finalExpertName,
     role,
     uid: roleConfig.uid,
     sarvamSpeaker: roleConfig.sarvamSpeaker,

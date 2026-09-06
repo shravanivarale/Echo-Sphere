@@ -91,6 +91,7 @@ export function cleanResumeText(raw: string, maxLength = 6000): string {
 async function extractPdfText(buffer: ArrayBuffer): Promise<string> {
   // Dynamic import keeps this server-side only (never bundled for the browser).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // @ts-ignore
   const pdfjsLib: any = await import('pdfjs-dist/legacy/build/pdf.mjs');
 
   // Resolve the worker script path relative to where pdfjs-dist is installed.
