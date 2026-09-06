@@ -19,13 +19,13 @@ Getting started is quick and easy: install the CLI _(skip if you already have it
 1. **Install the Agora CLI and sign in**
    _(skip if `agora` is already on your PATH)_:
 
-   macOS and Linux:
+   macOS and Linux : 
 
    ```bash
    curl -fsSL https://raw.githubusercontent.com/AgoraIO/cli/main/install.sh | sh -s -- --add-to-path
    ```
 
-   Windows PowerShell:
+   Windows PowerShell :
 
    ```powershell
    irm https://dl.agora.io/cli/install.ps1 | iex
@@ -33,7 +33,7 @@ Getting started is quick and easy: install the CLI _(skip if you already have it
 
    If the Windows install command fails in PowerShell, try running the macOS/Linux command from [Git Bash](https://git-scm.com/downloads/win), then open a new terminal and run `agora --help` to confirm the CLI is on your PATH.
 
-   Then verify and sign in:
+   Then verify and sign in :
 
    ```bash
    agora --help
