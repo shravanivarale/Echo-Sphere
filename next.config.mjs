@@ -12,11 +12,8 @@ const nextConfig = {
   turbopack: {
     root: rootDir,
   },
-  experimental: {
-    webpackBuildWorker: true,
-    parallelServerBuildTraces: true,
-    parallelServerCompiles: true,
-  },
+  // Prevent webpack from bundling these — they must run as native Node modules
+  serverExternalPackages: ['pdfjs-dist', 'mammoth', 'pdf-parse'],
 };
 
 export default nextConfig;

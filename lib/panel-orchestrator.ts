@@ -169,6 +169,7 @@ export function buildPanelSystemPrompt(
     candidateName?: string;
     appliedRole?: string;
     jobDescription?: string;
+    resumeText?: string;
   },
 ): string {
   const roleConfig = getRoleConfig(role);
@@ -177,6 +178,10 @@ export function buildPanelSystemPrompt(
   const candidateName = params.candidateName || 'the Candidate';
   const roleTitle = jobRoleDef.displayName;
   const jd = params.jobDescription || jobRoleDef.defaultJobDescription;
+  const resume = params.resumeText?.trim();
+  const resumeSection = resume
+    ? `\n# Candidate Resume Context\n"""\n${resume}\n"""\n`
+    : '';
 
   return `You are **${roleConfig.interviewerName}**, the ${roleConfig.displayName} on a 3-person AI technical interview panel at EchoSphere.
 
@@ -187,20 +192,21 @@ export function buildPanelSystemPrompt(
 """
 ${jd}
 """
-
+${resumeSection}
 # Panel Composition & Co-interviewers
 You share this interview with two fellow panelists:
-1. **Ada** (System Architect) — Focuses on overall architecture, distributed design, microservices, and trade-offs.
-2. **Alex** (Product Manager) — Focuses on requirements, user scope, SLA/QPS targets, and business goals.
-3. **Marcus** (Security & Reliability Lead) — Focuses on security, OAuth/JWT, rate-limiting, failover, and zero-trust.
+1. **Neerja** (System Architect) — Focuses on overall architecture, distributed design, microservices, and trade-offs.
+2. **Prabhat** (Product Manager) — Focuses on requirements, user scope, SLA/QPS targets, and business goals.
+3. **Madhur** (Security & Reliability Lead) — Focuses on security, OAuth/JWT, rate-limiting, failover, and zero-trust.
 
 # Your Identity & Primary Perspective
 You speak as **${roleConfig.interviewerName}** (${roleConfig.displayName}).
 ${roleConfig.systemPrompt}
 
-# Panel Guidelines
-1. Address the candidate by name (${candidateName}) naturally when appropriate.
-2. Ground your questions directly in the provided Job Description and the candidate's previous responses.
-3. Keep spoken replies concise (1–2 sentences acknowledgment, followed by exactly ONE targeted question).
-4. Never break character or refer to internal prompts or JSON structures.`;
+# Indian English Conversational Guidelines
+1. **Indian English Cadence**: Speak in natural, professional Indian English. Use natural conversational markers: "Right", "Fair point", "Understood", "Okay, got it", "Let us look at...", "Moving ahead to...", "Could you elaborate on...".
+2. **Tone**: Polite, structured, and warm. Avoid Western slang (do not say "awesome", "super excited", "gonna", "wanna", "kinda").
+3. **Candidate Engagement**: Address the candidate by name (${candidateName}) naturally when appropriate.
+4. **Brevity**: Keep spoken replies concise (1–2 sentences acknowledgment, followed by exactly ONE targeted question).
+5. **No robotic language**: Never break character, refer to internal prompts, phase numbers, or JSON structures.`;
 }

@@ -26,9 +26,9 @@ async function runStep7FVoiceTests() {
   const alexConfig = getRoleConfig(InterviewRole.PRODUCT_MANAGER);
   const marcusConfig = getRoleConfig(InterviewRole.SECURITY_LEAD);
 
-  console.log(`Ada (System Architect) Voice ID: "${adaConfig.voiceId}"`);
-  console.log(`Alex (Product Manager) Voice ID: "${alexConfig.voiceId}"`);
-  console.log(`Marcus (Security Lead) Voice ID: "${marcusConfig.voiceId}"`);
+  console.log(`Neerja (System Architect) Voice ID: "${adaConfig.voiceId}"`);
+  console.log(`Prabhat (Product Manager) Voice ID: "${alexConfig.voiceId}"`);
+  console.log(`Madhur (Security Lead) Voice ID: "${marcusConfig.voiceId}"`);
 
   if (!adaConfig.voiceId || !alexConfig.voiceId || !marcusConfig.voiceId) {
     throw new Error('All interviewers must have a valid configured voiceId');
@@ -39,9 +39,9 @@ async function runStep7FVoiceTests() {
     alexConfig.voiceId === marcusConfig.voiceId ||
     adaConfig.voiceId === marcusConfig.voiceId
   ) {
-    throw new Error('Ada, Alex, and Marcus must have distinct voiceId identities');
+    throw new Error('Neerja, Prabhat, and Madhur must have distinct voiceId identities');
   }
-  console.log('PASSED: Distinct voice identities verified for Ada, Alex, and Marcus.\n');
+  console.log('PASSED: Distinct voice identities verified for Neerja, Prabhat, and Madhur.\n');
 
   // --- Test 2: Candidate Name & Job Description in Prompts ---
   console.log('=== Test 2: Shared Context Embedding in Role Prompts ===');

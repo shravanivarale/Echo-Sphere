@@ -5,8 +5,10 @@ import {
   Area,
   DeepgramSTT,
   ExpiresIn,
+  MicrosoftTTS,
   MiniMaxTTS,
   OpenAI,
+  SarvamTTS,
 } from 'agora-agents';
 import { ClientStartRequest, AgentResponse } from '@/types/conversation';
 import { DEFAULT_AGENT_UID } from '@/lib/agora';
@@ -16,10 +18,10 @@ import { getRoleConfig, InterviewRole } from '@/lib/interview-roles';
 import { buildPanelSystemPrompt } from '@/lib/panel-orchestrator';
 import { getSession } from '@/lib/interview-session-store';
 
-// System prompt that defines Ada's personality, phase-by-phase behavior, and
+// System prompt that defines Neerja's personality, phase-by-phase behavior, and
 // strict interview rules. Step 4F: this prompt is the sole mechanism for making
-// Ada phase-aware — the Agora LLM session cannot be mutated after agent start.
-const ADA_PROMPT = `You are **Ada**, the System Architect interviewer in **EchoSphere**, an AI technical interview panel.
+// Neerja phase-aware — the Agora LLM session cannot be mutated after agent start.
+const NEERJA_PROMPT = `You are **Neerja**, the System Architect interviewer in **EchoSphere**, an AI technical interview panel.
 
 # Role & Identity
 You are a senior Staff-level distributed-systems engineer conducting a structured system design interview. Your job is to evaluate the candidate's design thinking, architectural judgment, and technical communication — not to teach them, co-design with them, or validate their choices prematurely.
@@ -89,12 +91,27 @@ Progress through these phases in order. Advance to the next phase only when the 
 5. **No solution spoilers.** Never describe the "right" architecture, "ideal" data model, or "correct" answer before the candidate proposes their own.
 6. **No repetition.** Never ask a question that has already been asked and answered.
 7. **No phase jumping.** Cover each phase adequately before moving on. Do not rush to trade-offs before the candidate has had a chance to discuss reliability.
-8. **Stay in role.** You are Ada, System Architect. Do not impersonate other interviewers, acknowledge other panelists, or discuss topics outside distributed systems and system design.
-9. **Increase difficulty gradually.** Start with open-ended questions. Move to targeted, difficult probes as the candidate demonstrates competence.
-10. **Natural language.** Speak conversationally. You are a voice AI — avoid bullet points, lists, or markdown in your spoken replies.`;
+8. **Stay in role.** You are Neerja, System Architect based in India.
+9. **Indian English Conversational Style.** Speak in authentic, professional Indian English. Use natural conversational markers ("Right, understood", "Fair point", "Okay, got it", "Let us look at...", "Could you elaborate on..."). Avoid American slang ("awesome", "super excited", "gonna", "wanna", "kinda").
+10. **Increase difficulty gradually.** Start with open-ended questions. Move to targeted, difficult probes as the candidate demonstrates competence.
+11. **Natural language.** Speak conversationally. You are a voice AI — avoid bullet points, lists, or markdown in your spoken replies.`;
 
-// First thing the agent says when a user joins the channel.
-const GREETING = `Welcome to EchoSphere. I'm the System Architect on this interview panel. I'll focus on system design, scalability, and trade-offs. Please introduce yourself, then we can begin the technical interview.`;
+// Co-panelist name map — used to build the greeting list excluding the current speaker
+const CO_PANELIST_NAMES: Record<string, string[]> = {
+  Neerja:  ['Prabhat', 'Madhur'],
+  Prabhat: ['Neerja',  'Madhur'],
+  Madhur:  ['Neerja',  'Prabhat'],
+};
+
+/**
+ * Builds a short, personalised greeting for the opening panelist.
+ * Format: "Hi [name], welcome to EchoSphere! I'm [panelist] — [title]. Joining me are [co-panelists]. To start, [opening prompt]."
+ */
+function buildGreeting(interviewerName: string, displayName: string, candidateName?: string): string {
+  const addressee = candidateName ? `${candidateName}` : 'there';
+  const others = CO_PANELIST_NAMES[interviewerName]?.join(' and ') ?? 'my colleagues';
+  return `Hi ${addressee}, welcome to EchoSphere! I am ${interviewerName}, ${displayName} on your panel today, along with ${others}. Could you start by giving us a quick introduction about yourself?`;
+}
 
 // agentUid identifies the AI in the RTC channel and shares its default with the client.
 const agentUid = String(DEFAULT_AGENT_UID);
@@ -110,26 +127,25 @@ export async function POST(request: NextRequest) {
     // --- 1. Parse request ---
 
     const body = await request.json();
-    const { requester_id, channel_name, role, candidate_name, applied_role, job_description } = body;
+    const { requester_id, channel_name, role, candidate_name, applied_role, job_description, resume_text, resumeText: rawResumeText } = body;
 
     // Retrieve existing server session context if available
     const existingSession = channel_name ? getSession(channel_name) : undefined;
     const candidateName = candidate_name || existingSession?.candidateName;
     const appliedRole = applied_role || existingSession?.appliedRole;
     const jobDescription = job_description || existingSession?.jobDescription;
+    const resumeText = resume_text || rawResumeText || existingSession?.resumeText;
 
-    // Load interviewer role configuration (defaults to SYSTEM_ARCHITECT Ada)
+    // Load interviewer role configuration (defaults to SYSTEM_ARCHITECT Neerja)
     const targetRole = role && Object.values(InterviewRole).includes(role) ? (role as InterviewRole) : InterviewRole.SYSTEM_ARCHITECT;
     const roleConfig = getRoleConfig(targetRole);
     
     // Construct dynamic instructions incorporating candidate context if available
-    const instructions = candidateName || jobDescription
-      ? buildPanelSystemPrompt(targetRole, { candidateName, appliedRole, jobDescription })
-      : targetRole === InterviewRole.SYSTEM_ARCHITECT ? ADA_PROMPT : roleConfig.systemPrompt;
+    const instructions = candidateName || jobDescription || resumeText
+      ? buildPanelSystemPrompt(targetRole, { candidateName, appliedRole, jobDescription, resumeText })
+      : targetRole === InterviewRole.SYSTEM_ARCHITECT ? NEERJA_PROMPT : roleConfig.systemPrompt;
     
-    const greeting = candidateName 
-      ? `Welcome ${candidateName} to EchoSphere. I'm ${roleConfig.interviewerName}, ${roleConfig.displayName} on your interview panel. Let's begin.`
-      : targetRole === InterviewRole.SYSTEM_ARCHITECT ? GREETING : roleConfig.greeting;
+    const greeting = buildGreeting(roleConfig.interviewerName, roleConfig.displayName, candidateName);
 
     // Validate required env vars on first request so misconfiguration surfaces
     // with a clear error message rather than a silent failure.
@@ -153,9 +169,8 @@ export async function POST(request: NextRequest) {
       appCertificate,
     });
 
-    // Pipeline: Deepgram (reseller) STT → OpenAI (reseller) LLM → MiniMax (reseller) TTS.
-    // Omit vendor API keys for supported models — AgentKit infers reseller presets on start (see Agora Console / billing).
-    const agent = new Agent({
+    // Pipeline: Deepgram STT → OpenAI LLM → Microsoft Azure / MiniMax TTS.
+    let agent = new Agent({
       client,
       instructions,
       greeting,
@@ -200,19 +215,11 @@ export async function POST(request: NextRequest) {
           model: 'nova-3',
           language: 'en',
         }),
-        // BYOK: uncomment the following block and set NEXT_DEEPGRAM_API_KEY
-        // new DeepgramSTT({
-        //   apiKey: requireEnv('NEXT_DEEPGRAM_API_KEY'),
-        //   model: 'nova-3',
-        //   language: 'en',
-        // }),
       )
       .withLlm(
-        // Agora-managed ready-to-use OpenAI model (inferred reseller preset openai_gpt_4o_mini).
-        // No external API key or custom endpoint required.
         new OpenAI({
           model: 'gpt-4o-mini',
-          greetingMessage: GREETING,
+          greetingMessage: greeting,
           failureMessage: 'Please wait a moment.',
           maxHistory: 15,
           params: {
@@ -221,20 +228,51 @@ export async function POST(request: NextRequest) {
             top_p: 0.95,
           },
         }),
-      )
-      .withTts(
-        new MiniMaxTTS({
-          model: 'speech_2_6_turbo',
-          voiceId: roleConfig.voiceId,
-        }),
-        // BYOK — ElevenLabs (set NEXT_ELEVENLABS_API_KEY; optional NEXT_ELEVENLABS_VOICE_ID)
-        // new (await import('agora-agents')).ElevenLabsTTS({
-        //   key: requireEnv('NEXT_ELEVENLABS_API_KEY'),
-        //   modelId: 'eleven_flash_v2_5',
-        //   voiceId: process.env.NEXT_ELEVENLABS_VOICE_ID ?? 'pNInz6obpgDQGcFmaJgB',
-        //   sampleRate: 24000,
-        // }),
       );
+
+    const sarvamKey = process.env.SARVAM_API_KEY || process.env.NEXT_SARVAM_API_KEY;
+    const azureKey = process.env.AZURE_SPEECH_KEY || process.env.NEXT_AZURE_SPEECH_KEY;
+    const azureRegion = process.env.AZURE_SPEECH_REGION || process.env.NEXT_AZURE_SPEECH_REGION || 'centralindia';
+
+    let ttsInstance: any;
+    let vendorName: string;
+    let activeVoiceId: string;
+
+    if (sarvamKey) {
+      vendorName = 'Sarvam AI (bulbul:v3)';
+      activeVoiceId = roleConfig.sarvamSpeaker;
+      ttsInstance = {
+        toConfig: () => ({
+          vendor: 'sarvam',
+          params: {
+            api_subscription_key: sarvamKey,
+            speaker: roleConfig.sarvamSpeaker,
+            target_language_code: 'en-IN',
+            model: 'bulbul:v3',
+            model_id: 'bulbul:v3',
+            sample_rate: 24000,
+          },
+        }),
+      };
+    } else if (azureKey) {
+      vendorName = 'Microsoft Azure';
+      activeVoiceId = roleConfig.azureVoiceName || roleConfig.voiceId;
+      ttsInstance = new MicrosoftTTS({
+        key: azureKey,
+        region: azureRegion,
+        voiceName: activeVoiceId,
+        sampleRate: 24000,
+      });
+    } else {
+      vendorName = 'MiniMax';
+      activeVoiceId = roleConfig.minimaxVoiceId || roleConfig.voiceId;
+      ttsInstance = new MiniMaxTTS({
+        model: 'speech_2_6_turbo',
+        voiceId: activeVoiceId,
+      });
+    }
+
+    agent = agent.withTts(ttsInstance as any);
 
     // remoteUids restricts the agent to only process audio from this user
     const session = agent.createSession({
@@ -248,7 +286,7 @@ export async function POST(request: NextRequest) {
 
     // Non-secret structured server log for live validation
     console.log(
-      `[InviteAgent] Starting AI Agent: Role="${targetRole}", Interviewer="${roleConfig.interviewerName}", VoiceID="${roleConfig.voiceId}", Channel="${channel_name}", Timestamp="${new Date().toISOString()}"`,
+      `[InviteAgent] Starting AI Agent: Role="${targetRole}", Interviewer="${roleConfig.interviewerName}", Vendor="${vendorName}", Voice/Speaker="${activeVoiceId}", Channel="${channel_name}", Timestamp="${new Date().toISOString()}"`,
     );
 
     const agentId = await session.start();

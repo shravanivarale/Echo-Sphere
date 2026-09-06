@@ -42,6 +42,7 @@ export interface CreateSessionParams {
   candidateName?: string;
   appliedRole?: string;
   jobDescription?: string;
+  resumeText?: string;
   channelName?: string;
   candidateUid?: string;
   agentId?: string;
@@ -57,6 +58,7 @@ export function createSession(params: CreateSessionParams): InterviewSession {
     if (params.candidateName) existing.candidateName = params.candidateName;
     if (params.appliedRole) existing.appliedRole = params.appliedRole;
     if (params.jobDescription) existing.jobDescription = params.jobDescription;
+    if (params.resumeText) existing.resumeText = params.resumeText;
     if (!existing.panelSpeakerState) {
       existing.panelSpeakerState = createInitialSpeakerState(existing.currentRole);
     }
@@ -70,6 +72,7 @@ export function createSession(params: CreateSessionParams): InterviewSession {
     candidateName: params.candidateName,
     appliedRole: params.appliedRole,
     jobDescription: params.jobDescription,
+    resumeText: params.resumeText,
     channelName: params.channelName || params.sessionId,
     candidateUid: params.candidateUid,
     agentId: params.agentId,

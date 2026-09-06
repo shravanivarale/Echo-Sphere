@@ -154,6 +154,8 @@ export interface InterviewSession {
   appliedRole?: string;
   /** Final edited Job Description text */
   jobDescription?: string;
+  /** Raw parsed resume text (grounds all panelists in candidate background) */
+  resumeText?: string;
   /** Agora RTC/RTM channel name */
   channelName?: string;
   /** Candidate RTC UID */

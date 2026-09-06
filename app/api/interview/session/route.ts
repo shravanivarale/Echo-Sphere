@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
         candidateName,
         appliedRole,
         jobDescription,
+        resumeText: body.resumeText || body.resume_text,
         channelName: channelName || sessionId,
         candidateUid: candidateUid ? String(candidateUid) : undefined,
         agentId: agentId ? String(agentId) : undefined,

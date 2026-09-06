@@ -78,6 +78,8 @@ export default function LandingPage() {
     candidateName: string;
     appliedRole: string;
     jobDescription: string;
+    resumeText?: string;
+    fileName?: string;
   }) => {
     setIsLoading(true);
     setError(null);
@@ -109,6 +111,7 @@ export default function LandingPage() {
             candidate_name: formData?.candidateName,
             applied_role: formData?.appliedRole,
             job_description: formData?.jobDescription,
+            resume_text: formData?.resumeText,
           }),
         })
           .then(async (res) => {
@@ -150,6 +153,7 @@ export default function LandingPage() {
           candidateName: formData?.candidateName,
           appliedRole: formData?.appliedRole,
           jobDescription: formData?.jobDescription,
+          resumeText: formData?.resumeText,
         }),
       }).catch((err) => {
         console.error('Failed to register session on server API:', err);

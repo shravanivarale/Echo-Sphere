@@ -7,6 +7,7 @@ import {
 } from '@/lib/panel-speaker-manager';
 import { selectNextPanelSpeaker } from '@/lib/panel-orchestrator';
 import { InterviewRole } from '@/types/interview';
+import { DEFAULT_AGENT_UID } from '@/lib/agora';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
 
       if (session.agentId && appId && appCertificate) {
         try {
-          const { AgoraClient, Area } = await import('agora-agents');
+          const { AgoraClient, Area, generateConvoAIToken } = await import('agora-agents');
           const { getRoleConfig } = await import('@/lib/interview-roles');
           const { buildPanelSystemPrompt } = await import('@/lib/panel-orchestrator');
 
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest) {
             candidateName: session.candidateName,
             appliedRole: session.appliedRole,
             jobDescription: session.jobDescription,
+            resumeText: session.resumeText,
           });
 
           const client = new AgoraClient({
@@ -82,22 +84,72 @@ export async function POST(request: NextRequest) {
             appCertificate,
           });
 
-          await client.agents.update({
-            appid: appId,
-            agentId: session.agentId,
-            properties: {
-              llm: {
-                system_messages: [
-                  {
-                    role: 'system',
-                    content: instructions,
-                  },
-                ],
-              },
-            },
+          const token = generateConvoAIToken({
+            appId,
+            appCertificate,
+            channelName: session.channelName || session.sessionId,
+            uid: DEFAULT_AGENT_UID,
           });
+          const headers = { Authorization: `agora token=${token}` };
+
+          const sarvamKey = process.env.SARVAM_API_KEY || process.env.NEXT_SARVAM_API_KEY;
+          const azureKey = process.env.AZURE_SPEECH_KEY || process.env.NEXT_AZURE_SPEECH_KEY;
+          const azureRegion = process.env.AZURE_SPEECH_REGION || process.env.NEXT_AZURE_SPEECH_REGION || 'centralindia';
+
+          const ttsPayload = sarvamKey
+            ? {
+                vendor: 'sarvam',
+                params: {
+                  api_subscription_key: sarvamKey,
+                  speaker: roleConfig.sarvamSpeaker,
+                  target_language_code: 'en-IN',
+                  model: 'bulbul:v3',
+                  model_id: 'bulbul:v3',
+                  sample_rate: 24000,
+                },
+              }
+            : azureKey
+            ? {
+                vendor: 'microsoft',
+                params: {
+                  key: azureKey,
+                  region: azureRegion,
+                  voice_name: roleConfig.azureVoiceName || roleConfig.voiceId,
+                },
+              }
+            : {
+                vendor: 'minimax',
+                params: {
+                  model: 'speech_2_6_turbo',
+                  language_boost: 'English',
+                  voice_setting: {
+                    voice_id: roleConfig.minimaxVoiceId || roleConfig.voiceId,
+                  },
+                },
+              };
+
+          await client.agents.update(
+            {
+              appid: appId,
+              agentId: session.agentId,
+              properties: {
+                llm: {
+                  system_messages: [
+                    {
+                      role: 'system',
+                      content: instructions,
+                    },
+                  ],
+                },
+                tts: ttsPayload,
+              } as any,
+            },
+            { headers },
+          );
+          const activeSpeakerName = sarvamKey ? roleConfig.sarvamSpeaker : azureKey ? (roleConfig.azureVoiceName || roleConfig.voiceId) : (roleConfig.minimaxVoiceId || roleConfig.voiceId);
+          const activeVendor = sarvamKey ? 'Sarvam AI' : azureKey ? 'Microsoft Azure' : 'MiniMax';
           console.log(
-            `[PanelSpeakerAPI] Agora Agent properties updated live to ${selection.interviewerName} (${roleConfig.voiceId})`,
+            `[PanelSpeakerAPI] Agora Agent properties updated live to ${selection.interviewerName} (${activeSpeakerName}) [${activeVendor}]`,
           );
         } catch (updateErr) {
           console.warn(`[PanelSpeakerAPI] Live agent update notification:`, updateErr);
