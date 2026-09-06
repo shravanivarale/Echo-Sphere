@@ -1035,7 +1035,7 @@ export default function ConversationComponent({
         <div className="flex shrink-0 items-center gap-2">
           {/* Active Interviewer Role Badge */}
           <div
-            className="flex shrink-0 items-center gap-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-blue-400"
+            className="flex shrink-0 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-primary"
             role="status"
             aria-label={`Current interviewer: ${getRoleConfig(session.currentRole || getRoleForPhase(session.currentPhase)).displayName}`}
             title={`Interviewer: ${getRoleConfig(session.currentRole || getRoleForPhase(session.currentPhase)).interviewerName} (${getRoleConfig(session.currentRole || getRoleForPhase(session.currentPhase)).displayName})`}

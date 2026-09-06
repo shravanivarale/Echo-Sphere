@@ -48,20 +48,20 @@ export function ConnectionStatusPanel({
             <span
               className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
                 connectionSeverity === 'normal'
-                  ? 'bg-green-500'
+                  ? 'bg-primary'
                   : connectionSeverity === 'warning'
                     ? 'bg-amber-500'
-                    : 'bg-red-500'
+                    : 'bg-destructive'
               }`}
             />
           )}
           <span
             className={`relative inline-flex h-2 w-2 rounded-full ${
               connectionSeverity === 'normal'
-                ? 'bg-green-500'
+                ? 'bg-primary'
                 : connectionSeverity === 'warning'
                   ? 'bg-amber-500'
-                  : 'bg-red-500'
+                  : 'bg-destructive'
             }`}
           />
         </span>

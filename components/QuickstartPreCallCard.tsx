@@ -133,15 +133,15 @@ export function QuickstartPreCallCard({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mx-auto flex w-[min(94vw,34rem)] animate-fade-up flex-col rounded-[20px] border border-[#2b2b2b] px-6 py-8 text-left shadow-[0_10px_24px_rgba(0,0,0,0.28)] md:px-8 md:py-8"
+      className="mx-auto flex w-[min(94vw,34rem)] animate-fade-up flex-col rounded-[20px] border border-border bg-card px-6 py-8 text-left shadow-[0_12px_32px_rgba(11,18,32,0.6)] md:px-8 md:py-8"
       style={{
         backgroundImage:
-          'linear-gradient(164.988deg, rgba(54,54,54,0.2) 1.0596%, rgba(0,0,0,0) 96.089%), linear-gradient(90deg, rgb(16,16,16) 0%, rgb(16,16,16) 100%)',
+          'linear-gradient(180deg, rgba(34,211,238,0.03) 0%, rgba(21,31,50,0.95) 100%)',
       }}
     >
-      <div className="flex items-center justify-between border-b border-border/60 pb-4">
+      <div className="flex items-center justify-between border-b border-border pb-4">
         <div>
-          <h1 className="text-xl font-semibold text-white">EchoSphere Interview Panel</h1>
+          <h1 className="text-xl font-semibold text-foreground">EchoSphere Interview Panel</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             3-Agent AI Technical Panel (Neerja, Prabhat, Madhur)
           </p>
@@ -149,7 +149,7 @@ export function QuickstartPreCallCard({
       </div>
 
       <div className="mt-5 space-y-4">
-        {/* Resume Upload Dropzone (Replaces manual name entry) */}
+        {/* Resume Upload Dropzone */}
         <div>
           <label className="mb-1.5 flex items-center justify-between text-xs font-medium text-foreground">
             <span className="flex items-center gap-1.5">
@@ -175,7 +175,7 @@ export function QuickstartPreCallCard({
               <p className="text-[11px] text-muted-foreground">Extracting experience, skills, and identity</p>
             </div>
           ) : uploadedFileName ? (
-            <div className="flex items-center justify-between rounded-lg border border-primary/40 bg-black/40 p-3.5">
+            <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-[#0B1220]/70 p-3.5">
               <div className="flex items-center gap-3 overflow-hidden">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                   <CheckCircle2 className="h-5 w-5" />
@@ -192,7 +192,7 @@ export function QuickstartPreCallCard({
               <button
                 type="button"
                 onClick={handleRemoveResume}
-                className="shrink-0 rounded p-1 text-muted-foreground hover:bg-white/10 hover:text-foreground"
+                className="shrink-0 rounded p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
                 title="Remove resume"
               >
                 <X className="h-4 w-4" />
@@ -207,7 +207,7 @@ export function QuickstartPreCallCard({
               className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed p-6 text-center transition-colors ${
                 isDragging
                   ? 'border-primary bg-primary/10'
-                  : 'border-border bg-black/30 hover:border-primary/60 hover:bg-black/40'
+                  : 'border-border bg-[#0B1220]/50 hover:border-primary/60 hover:bg-[#0B1220]/80'
               }`}
             >
               <UploadCloud className="h-6 w-6 text-primary" />
@@ -230,10 +230,10 @@ export function QuickstartPreCallCard({
           <select
             value={appliedRole}
             onChange={(e) => handleRoleChange(e.target.value)}
-            className="w-full rounded-md border border-border bg-black/40 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+            className="w-full rounded-md border border-border bg-[#0B1220]/70 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
           >
             {catalog.map((role) => (
-              <option key={role.id} value={role.id} className="bg-background text-foreground">
+              <option key={role.id} value={role.id} className="bg-card text-foreground">
                 {role.profileLabel ?? role.displayName}
               </option>
             ))}
@@ -241,16 +241,16 @@ export function QuickstartPreCallCard({
 
           {/* Role detail panel — requirements & interview focus */}
           {(selectedRoleDef.requirements.length > 0 || selectedRoleDef.interviewFocus) && (
-            <div className="mt-2 rounded-md border border-border/50 bg-black/20 px-3 py-2.5 text-[11px] text-muted-foreground space-y-1.5">
+            <div className="mt-2 rounded-md border border-border/70 bg-[#0B1220]/50 px-3 py-2.5 text-[11px] text-muted-foreground space-y-1.5">
               {selectedRoleDef.requirements.length > 0 && (
                 <div>
-                  <span className="font-semibold text-foreground/70">Requirements: </span>
+                  <span className="font-semibold text-foreground/80">Requirements: </span>
                   {selectedRoleDef.requirements.join(' · ')}
                 </div>
               )}
               {selectedRoleDef.interviewFocus && (
                 <div>
-                  <span className="font-semibold text-foreground/70">Interview focus: </span>
+                  <span className="font-semibold text-foreground/80">Interview focus: </span>
                   {selectedRoleDef.interviewFocus}
                 </div>
               )}
@@ -268,7 +268,7 @@ export function QuickstartPreCallCard({
             rows={5}
             value={jobDescription}
             onChange={(e) => setJobDescription(e.target.value)}
-            className="w-full rounded-md border border-border bg-black/40 px-3 py-2 text-xs font-mono leading-relaxed text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className="w-full rounded-md border border-border bg-[#0B1220]/70 px-3 py-2 text-xs font-mono leading-relaxed text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
         </div>
       </div>
@@ -280,7 +280,7 @@ export function QuickstartPreCallCard({
       <Button
         type="submit"
         disabled={isLoading || isParsing || !uploadedFileName}
-        className="mt-6 h-10 w-full rounded-lg border border-primary bg-primary text-sm font-medium text-black hover:border-white hover:bg-white hover:text-black disabled:hover:border-primary disabled:hover:bg-primary disabled:hover:text-black"
+        className="mt-6 h-10 w-full rounded-lg border border-primary bg-primary text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50 disabled:pointer-events-none"
       >
         {isLoading ? (
           <>
