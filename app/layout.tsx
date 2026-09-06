@@ -39,7 +39,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full dark">
+    <html lang="en" className="h-full">
       <body className="h-full min-h-screen bg-background text-foreground">{children}</body>
     </html>
   );

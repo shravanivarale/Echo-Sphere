@@ -175,7 +175,7 @@ export function QuickstartPreCallCard({
               <p className="text-[11px] text-muted-foreground">Extracting experience, skills, and identity</p>
             </div>
           ) : uploadedFileName ? (
-            <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-[#0B1220]/70 p-3.5">
+            <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-card/70 p-3.5">
               <div className="flex items-center gap-3 overflow-hidden">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                   <CheckCircle2 className="h-5 w-5" />
@@ -207,7 +207,7 @@ export function QuickstartPreCallCard({
               className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed p-6 text-center transition-colors ${
                 isDragging
                   ? 'border-primary bg-primary/10'
-                  : 'border-border bg-[#0B1220]/50 hover:border-primary/60 hover:bg-[#0B1220]/80'
+                  : 'border-border bg-card/50 hover:border-primary/60 hover:bg-card/80'
               }`}
             >
               <UploadCloud className="h-6 w-6 text-primary" />
@@ -230,7 +230,7 @@ export function QuickstartPreCallCard({
           <select
             value={appliedRole}
             onChange={(e) => handleRoleChange(e.target.value)}
-            className="w-full rounded-md border border-border bg-[#0B1220]/70 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+            className="w-full rounded-md border border-border bg-card/70 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
           >
             {catalog.map((role) => (
               <option key={role.id} value={role.id} className="bg-card text-foreground">
@@ -241,7 +241,7 @@ export function QuickstartPreCallCard({
 
           {/* Role detail panel — requirements & interview focus */}
           {(selectedRoleDef.requirements.length > 0 || selectedRoleDef.interviewFocus) && (
-            <div className="mt-2 rounded-md border border-border/70 bg-[#0B1220]/50 px-3 py-2.5 text-[11px] text-muted-foreground space-y-1.5">
+            <div className="mt-2 rounded-md border border-border/70 bg-card/50 px-3 py-2.5 text-[11px] text-muted-foreground space-y-1.5">
               {selectedRoleDef.requirements.length > 0 && (
                 <div>
                   <span className="font-semibold text-foreground/80">Requirements: </span>
@@ -268,7 +268,7 @@ export function QuickstartPreCallCard({
             rows={5}
             value={jobDescription}
             onChange={(e) => setJobDescription(e.target.value)}
-            className="w-full rounded-md border border-border bg-[#0B1220]/70 px-3 py-2 text-xs font-mono leading-relaxed text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className="w-full rounded-md border border-border bg-card/70 px-3 py-2 text-xs font-mono leading-relaxed text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
         </div>
       </div>

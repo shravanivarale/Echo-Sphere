@@ -60,7 +60,7 @@ export function PanelInterviewersCard({
               className={`relative flex flex-col items-center justify-center rounded-lg border p-2.5 transition-all duration-200 ${
                 isActive
                   ? `${accentColor} ${activeRing}`
-                  : 'border-border/40 bg-[#0B1220]/40 text-muted-foreground opacity-60'
+                  : 'border-border/40 bg-card/40 text-muted-foreground opacity-60'
               }`}
             >
               {isCurrentlySpeaking && (

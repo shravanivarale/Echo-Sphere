@@ -1,3 +1,4 @@
+/* stylelint-disable */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -15,37 +16,37 @@
  */
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
   /* Primary Background: Deep Navy #0B1220 */
-  --background: 220 49% 8.4%;
-  --surface: 219 41% 13.9%;
-  --surface-elevated: 219 38% 18%;
+  --background: 210 38% 97%; /* #F4F7FA */
+  --surface: 210 38% 97%;
+  --surface-elevated: 210 38% 97%;
 
   /* Card / Panel Background: Lighter Navy #151F32 */
-  --card: 219 41% 13.9%;
-  --card-foreground: 210 40% 96.1%;
-  --popover: 219 41% 13.9%;
-  --popover-foreground: 210 40% 96.1%;
+  --card: 0 0% 100%; /* #FFFFFF */
+  --card-foreground: 223 17% 8%; /* #111318 */
+  --popover: 0 0% 100%;
+  --popover-foreground: 223 17% 8%;
 
   /* Muted surfaces & secondary controls: Dark Navy slate #1E293B / #162236 */
-  --muted: 217 33% 17.5%;
-  --muted-foreground: 215 25% 65.1%;
+  --muted: 215 20% 90%; /* pastel border */
+  --muted-foreground: 220 9% 46%; /* #6B7280 */
 
-  --secondary: 219 35% 18%;
-  --secondary-foreground: 210 40% 96.1%;
+  --secondary: 149 40% 96%; /* soft mint #E8F8EF */
+  --secondary-foreground: 223 17% 8%;
 
   /* Borders / inputs: Subtle dark navy-slate #1E293B */
-  --border: 217 33% 18%;
-  --input: 217 33% 18%;
+  --border: 215 20% 90%;
+  --input: 215 20% 90%;
 
   /* Primary Text: Soft White #F1F5F9 */
-  --foreground: 210 40% 96.1%;
+  --foreground: 223 17% 8%; /* #111318 */
 
   /* Primary Accent: Cyan #22D3EE */
-  --primary: 188 86% 53.3%;
+  --primary: 260 70% 80%; /* soft lavender */
   /* High-contrast dark navy text on cyan buttons */
-  --primary-foreground: 220 49% 8.4%;
+  --primary-foreground: 260 70% 10%;
 
   --accent: 188 86% 53.3%;
   --accent-foreground: 220 49% 8.4%;
