@@ -21,8 +21,10 @@ This document will outline the backend REST API endpoints.
 ### Voice & Realtime (Agora)
 - `POST /sessions/{session_id}/agora-token` - Generate Agora connection token.
 
-### Sandbox
+#### Sandbox
 - `POST /sessions/{session_id}/sandbox` - Update sandbox state.
 
-### Assessment
+##### Assessment
 - `GET /sessions/{session_id}/report` - Retrieve final assessment report.
+
+##### AI Panel
