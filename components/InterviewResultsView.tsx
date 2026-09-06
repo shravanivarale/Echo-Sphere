@@ -29,17 +29,17 @@ export function InterviewResultsView({
 
   // Color helper based on score scale (0-10)
   const getScoreColor = (score: number) => {
-    if (score >= 8.0) return 'text-emerald-500 bg-emerald-500/10 border-emerald-500/30';
-    if (score >= 6.0) return 'text-blue-500 bg-blue-500/10 border-blue-500/30';
-    if (score >= 4.0) return 'text-amber-500 bg-amber-500/10 border-amber-500/30';
-    return 'text-red-500 bg-red-500/10 border-red-500/30';
+    if (score >= 8.0) return 'text-primary bg-primary/10 border-primary/30';
+    if (score >= 6.0) return 'text-primary/90 bg-primary/10 border-primary/20';
+    if (score >= 4.0) return 'text-amber-400 bg-amber-400/10 border-amber-400/30';
+    return 'text-destructive bg-destructive/10 border-destructive/30';
   };
 
   const getProgressBarColor = (score: number) => {
-    if (score >= 8.0) return 'bg-emerald-500';
-    if (score >= 6.0) return 'bg-blue-500';
-    if (score >= 4.0) return 'bg-amber-500';
-    return 'bg-red-500';
+    if (score >= 8.0) return 'bg-primary';
+    if (score >= 6.0) return 'bg-primary/80';
+    if (score >= 4.0) return 'bg-amber-400';
+    return 'bg-destructive';
   };
 
   if (!evaluation) {
@@ -176,8 +176,8 @@ export function InterviewResultsView({
       {/* Strengths & Weaknesses Grid */}
       <div className="grid gap-6 md:grid-cols-2">
         {/* Strengths */}
-        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-6 shadow-sm">
-          <div className="flex items-center gap-2 text-emerald-500">
+        <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+          <div className="flex items-center gap-2 text-primary">
             <svg
               className="h-5 w-5"
               fill="none"
@@ -196,7 +196,7 @@ export function InterviewResultsView({
           <ul className="mt-4 space-y-2 text-xs text-muted-foreground">
             {evaluation.strengths.map((str, idx) => (
               <li key={idx} className="flex items-start gap-2">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
                 <span className="text-foreground">{str}</span>
               </li>
             ))}
@@ -204,8 +204,8 @@ export function InterviewResultsView({
         </div>
 
         {/* Areas for Improvement */}
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-6 shadow-sm">
-          <div className="flex items-center gap-2 text-amber-500">
+        <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+          <div className="flex items-center gap-2 text-amber-400">
             <svg
               className="h-5 w-5"
               fill="none"
@@ -224,7 +224,7 @@ export function InterviewResultsView({
           <ul className="mt-4 space-y-2 text-xs text-muted-foreground">
             {evaluation.weaknesses.map((weak, idx) => (
               <li key={idx} className="flex items-start gap-2">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
                 <span className="text-foreground">{weak}</span>
               </li>
             ))}

@@ -16,6 +16,14 @@ const config: Config = {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
       },
   		colors: {
+        // EchoSphere Navy & Cyan theme tokens
+        navy: {
+          DEFAULT: '#0B1220',
+          deep: '#0B1220',
+          card: '#151F32',
+          surface: '#151F32',
+          border: '#1E293B',
+        },
         // The <alpha-value> placeholder enables Tailwind opacity modifiers like
         // bg-primary/90, bg-card/80, bg-destructive/10, etc.
         // Without it, hsl(var(--token)) can't accept an alpha channel at utility-class time.

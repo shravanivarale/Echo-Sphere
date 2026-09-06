@@ -26,9 +26,9 @@ function formatMessageTime(createdAt?: number) {
 }
 
 const PANELIST_LABELS: Record<string, { name: string; color: string }> = {
-  '1001': { name: 'Neerja (System Architect)', color: 'text-blue-400' },
-  '1002': { name: 'Prabhat (Product Manager)', color: 'text-purple-400' },
-  '1003': { name: 'Madhur (Security Lead)', color: 'text-emerald-400' },
+  '1001': { name: 'Neerja (System Architect)', color: 'text-foreground' },
+  '1002': { name: 'Prabhat (Product Manager)', color: 'text-foreground' },
+  '1003': { name: 'Madhur (Security Lead)', color: 'text-foreground' },
 };
 
 export function QuickstartTranscriptPanel({
@@ -54,7 +54,7 @@ export function QuickstartTranscriptPanel({
 
   return (
     <section
-      className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-border bg-card/20"
+      className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-border bg-card/60 shadow-sm backdrop-blur-sm"
       aria-label="Transcription panel"
     >
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
@@ -83,19 +83,17 @@ export function QuickstartTranscriptPanel({
               !!message.speakerName;
 
             let label = 'You';
-            let labelColor = 'text-muted-foreground';
+            let labelColor = 'text-primary';
 
             if (message.speakerName) {
               label = message.speakerName;
-              if (label.includes('Neerja')) labelColor = 'text-blue-400';
-              else if (label.includes('Prabhat')) labelColor = 'text-purple-400';
-              else if (label.includes('Madhur')) labelColor = 'text-emerald-400';
+              labelColor = 'text-foreground font-semibold';
             } else if (PANELIST_LABELS[uidStr]) {
               label = PANELIST_LABELS[uidStr].name;
-              labelColor = PANELIST_LABELS[uidStr].color;
+              labelColor = 'text-foreground font-semibold';
             } else if (isAgent) {
               label = 'Interviewer';
-              labelColor = 'text-blue-400';
+              labelColor = 'text-foreground font-semibold';
             }
 
             const text = message.text?.trim();
@@ -106,15 +104,15 @@ export function QuickstartTranscriptPanel({
                 key={`${message.turn_id ?? message.uid}-${index}`}
                 className={`flex flex-col ${isAgent ? 'items-start' : 'items-end'}`}
               >
-                <div className={`mb-1 flex items-center gap-2 px-1 text-xs font-semibold ${labelColor}`}>
+                <div className={`mb-1 flex items-center gap-2 px-1 text-xs ${labelColor}`}>
                   <span>{label}</span>
                   {time && <span className="font-normal text-muted-foreground">{time}</span>}
                 </div>
                 <div
-                  className={`max-w-full whitespace-pre-wrap rounded-xl border px-3 py-2 text-sm leading-6 ${
+                  className={`max-w-full whitespace-pre-wrap rounded-xl border px-3.5 py-2 text-sm leading-6 shadow-sm ${
                     isAgent
-                      ? 'border-[#2f2f2f] bg-[#212121] text-[#e7e7e7]'
-                      : 'border-[#d7d7d7] bg-[#fdfcfb] text-black'
+                      ? 'border-border bg-card text-foreground'
+                      : 'border-primary/30 bg-primary/10 text-foreground'
                   }`}
                 >
                   {text || '...'}

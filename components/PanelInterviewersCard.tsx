@@ -19,31 +19,31 @@ export function PanelInterviewersCard({
     {
       role: InterviewRole.SYSTEM_ARCHITECT,
       icon: Cpu,
-      accentColor: 'border-blue-500/50 bg-blue-500/10 text-blue-400',
-      activeRing: 'ring-2 ring-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.3)]',
+      accentColor: 'border-primary/60 bg-primary/10 text-primary',
+      activeRing: 'ring-1 ring-primary/80 shadow-[0_0_15px_rgba(34,211,238,0.25)]',
     },
     {
       role: InterviewRole.PRODUCT_MANAGER,
       icon: UserCheck,
-      accentColor: 'border-purple-500/50 bg-purple-500/10 text-purple-400',
-      activeRing: 'ring-2 ring-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.3)]',
+      accentColor: 'border-primary/60 bg-primary/10 text-primary',
+      activeRing: 'ring-1 ring-primary/80 shadow-[0_0_15px_rgba(34,211,238,0.25)]',
     },
     {
       role: InterviewRole.SECURITY_LEAD,
       icon: ShieldCheck,
-      accentColor: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400',
-      activeRing: 'ring-2 ring-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]',
+      accentColor: 'border-primary/60 bg-primary/10 text-primary',
+      activeRing: 'ring-1 ring-primary/80 shadow-[0_0_15px_rgba(34,211,238,0.25)]',
     },
   ];
 
   return (
-    <div className="w-full rounded-xl border border-border/80 bg-black/40 p-3 backdrop-blur-md">
+    <div className="w-full rounded-xl border border-border bg-card/90 p-3 backdrop-blur-md shadow-sm">
       <div className="mb-2 flex items-center justify-between px-1">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           3-Person Real-Time Panel
         </span>
-        <span className="text-[10px] font-medium text-emerald-400 flex items-center gap-1">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="text-[10px] font-medium text-primary flex items-center gap-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
           Audio Arbitration Active
         </span>
       </div>
@@ -60,19 +60,19 @@ export function PanelInterviewersCard({
               className={`relative flex flex-col items-center justify-center rounded-lg border p-2.5 transition-all duration-200 ${
                 isActive
                   ? `${accentColor} ${activeRing}`
-                  : 'border-border/40 bg-muted/20 text-muted-foreground opacity-60'
+                  : 'border-border/40 bg-[#0B1220]/40 text-muted-foreground opacity-60'
               }`}
             >
               {isCurrentlySpeaking && (
                 <div className="absolute right-1.5 top-1.5 flex h-3 w-3 items-center justify-center">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <Mic className="h-2.5 w-2.5 text-emerald-400" />
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                  <Mic className="h-2.5 w-2.5 text-primary" />
                 </div>
               )}
 
               <div
                 className={`mb-1.5 flex h-8 w-8 items-center justify-center rounded-full border ${
-                  isActive ? 'bg-background/80' : 'bg-muted/40'
+                  isActive ? 'border-primary/40 bg-background/80 text-primary' : 'border-border/40 bg-muted/30 text-muted-foreground'
                 }`}
               >
                 <Icon className="h-4 w-4" />
