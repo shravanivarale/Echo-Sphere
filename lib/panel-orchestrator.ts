@@ -183,12 +183,20 @@ export function buildPanelSystemPrompt(
     ? `\n# Candidate Resume Context\n"""\n${resume}\n"""\n`
     : '';
 
+  const requirementsSection =
+    jobRoleDef.requirements.length > 0
+      ? `- **Key Requirements**: ${jobRoleDef.requirements.join(', ')}\n`
+      : '';
+  const focusSection = jobRoleDef.interviewFocus
+    ? `- **Interview Focus**: ${jobRoleDef.interviewFocus}\n`
+    : '';
+
   return `You are **${roleConfig.interviewerName}**, the ${roleConfig.displayName} on a 3-person AI technical interview panel at EchoSphere.
 
 # Shared Panel Context
 - **Candidate Name**: ${candidateName}
 - **Target Applied Role**: ${roleTitle}
-- **Job Description & Requirements**:
+${requirementsSection}${focusSection}- **Job Description**:
 """
 ${jd}
 """

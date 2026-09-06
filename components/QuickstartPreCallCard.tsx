@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { Loader2, Briefcase, FileText, UploadCloud, CheckCircle2, X, FileCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { getAllJobRoles, getJobRoleById } from '@/lib/job-roles';
+import { getAllJobRoles, getJobRoleById, type JobRoleDefinition } from '@/lib/job-roles';
 
 export interface PreCallFormData {
   candidateName: string;
@@ -28,6 +28,7 @@ export function QuickstartPreCallCard({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [appliedRole, setAppliedRole] = useState(catalog[0].id);
+  const [selectedRoleDef, setSelectedRoleDef] = useState<JobRoleDefinition>(catalog[0]);
   const [jobDescription, setJobDescription] = useState(catalog[0].defaultJobDescription);
   const [candidateName, setCandidateName] = useState('');
   const [resumeText, setResumeText] = useState('');
@@ -39,6 +40,7 @@ export function QuickstartPreCallCard({
   const handleRoleChange = (roleId: string) => {
     setAppliedRole(roleId);
     const roleDef = getJobRoleById(roleId);
+    setSelectedRoleDef(roleDef);
     setJobDescription(roleDef.defaultJobDescription);
   };
 
@@ -232,10 +234,28 @@ export function QuickstartPreCallCard({
           >
             {catalog.map((role) => (
               <option key={role.id} value={role.id} className="bg-background text-foreground">
-                {role.displayName}
+                {role.profileLabel ?? role.displayName}
               </option>
             ))}
           </select>
+
+          {/* Role detail panel — requirements & interview focus */}
+          {(selectedRoleDef.requirements.length > 0 || selectedRoleDef.interviewFocus) && (
+            <div className="mt-2 rounded-md border border-border/50 bg-black/20 px-3 py-2.5 text-[11px] text-muted-foreground space-y-1.5">
+              {selectedRoleDef.requirements.length > 0 && (
+                <div>
+                  <span className="font-semibold text-foreground/70">Requirements: </span>
+                  {selectedRoleDef.requirements.join(' · ')}
+                </div>
+              )}
+              {selectedRoleDef.interviewFocus && (
+                <div>
+                  <span className="font-semibold text-foreground/70">Interview focus: </span>
+                  {selectedRoleDef.interviewFocus}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Job Description Textarea */}
