@@ -150,11 +150,22 @@ export async function extractResumeText(
     return extractPdfText(buffer);
   }
 
-  if (type.includes('word') || type.includes('docx') || name.endsWith('.docx')) {
-    const mammoth = await import('mammoth');
-    const arrayBuffer = await file.arrayBuffer();
-    const result = await mammoth.extractRawText({ arrayBuffer });
-    return result.value || '';
+  if (
+    type.includes('word') ||
+    type.includes('docx') ||
+    type.includes('officedocument.wordprocessingml') ||
+    name.endsWith('.docx')
+  ) {
+    try {
+      const mammoth = await import('mammoth');
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const result = await mammoth.extractRawText({ buffer });
+      return result.value || '';
+    } catch (docxErr: unknown) {
+      const msg = docxErr instanceof Error ? docxErr.message : 'Invalid or corrupted document';
+      throw new Error(`Failed to parse DOCX file: ${msg}`);
+    }
   }
 
   if (
