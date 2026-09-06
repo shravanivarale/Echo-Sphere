@@ -13,7 +13,6 @@ import {
   InterviewPhase,
   InterviewRole,
   InterviewSession,
-  InterviewTurn,
 } from '@/types/interview';
 import { getRoleConfig } from '@/lib/interview-roles';
 import { getJobRoleById } from '@/lib/job-roles';

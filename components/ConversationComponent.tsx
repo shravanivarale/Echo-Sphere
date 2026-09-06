@@ -61,6 +61,10 @@ import {
 // Cap the displayed issues list to avoid overwhelming the UI during a cascade of errors.
 const MAX_CONNECTION_ISSUES = 6;
 
+// Module-level guard ensuring the opening greeting is requested and played only once per session,
+// surviving React StrictMode fake-unmount cycles and component re-renders.
+const playedGreetings = new Set<string>();
+
 type AgoraRtcWithParameters = typeof AgoraRTC & {
   setParameter?: (key: string, value: unknown) => void;
 };
@@ -118,8 +122,226 @@ export default function ConversationComponent({
   // Tracks granular RTC connection state for the status dot.
   // Agora states: DISCONNECTED | CONNECTING | CONNECTED | DISCONNECTING | RECONNECTING
   const [connectionState, setConnectionState] = useState<string>('CONNECTING');
+  // Multi-agent panel: each panelist has its own dedicated UID.
+  // For transcript attribution, agentUID is still "0" (the toolkit sentinel).
+  // For connection detection, we check for any panelist UID (1001/1002/1003).
   const agentUID = String(DEFAULT_AGENT_UID);
+  const PANELIST_UIDS = useMemo(() => new Set(['1001', '1002', '1003']), []);
   const [joinedUID, setJoinedUID] = useState<UID>(0);
+
+  // ── Audio Queue & Playback State ──────────────────────────────────────────
+  // Serializes all Sarvam REST audio clips to play back-to-back with zero overlap.
+  // Falls back to high-quality browser Web Speech synthesis with Indian English voices
+  // if Sarvam credits run out or connection fails.
+  interface QueuedAudioTurn {
+    audioBase64?: string;
+    textFallback?: string;
+    expertName?: string;
+  }
+
+  const audioQueueRef = useRef<QueuedAudioTurn[]>([]);
+  const isPlayingAudioRef = useRef(false);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+
+  // Server orchestrated panel turns (Neerja, Prabhat, Madhur) for UI and memory
+  const [serverTurns, setServerTurns] = useState<
+    Array<{
+      turn_id: string;
+      uid: number;
+      text: string;
+      speakerName: string;
+      createdAt: number;
+    }>
+  >([]);
+
+  const audioStartedAtRef = useRef<number>(0);
+  const lastInterruptedTextRef = useRef<string>('');
+  const localMicRef = useRef<any>(null);
+
+  const speakWithWebSpeech = useCallback(
+    (text: string, expertName: string | undefined, onDone: () => void) => {
+      if (typeof window === 'undefined' || !window.speechSynthesis) {
+        onDone();
+        return;
+      }
+
+      try {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.resume();
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'en-IN';
+
+        const voices = window.speechSynthesis.getVoices();
+        const inVoices = voices.filter(
+          (v) =>
+            v.lang.includes('en-IN') ||
+            v.lang.includes('hi-IN') ||
+            v.lang.includes('en_IN'),
+        );
+        const enVoices = voices.filter((v) => v.lang.startsWith('en'));
+
+        if (expertName === 'Neerja') {
+          const femaleVoice =
+            inVoices.find(
+              (v) =>
+                v.name.toLowerCase().includes('female') ||
+                v.name.toLowerCase().includes('zira') ||
+                v.name.toLowerCase().includes('priya') ||
+                v.name.toLowerCase().includes('heera'),
+            ) ||
+            inVoices[0] ||
+            enVoices.find(
+              (v) =>
+                v.name.toLowerCase().includes('female') ||
+                v.name.toLowerCase().includes('zira'),
+            ) ||
+            enVoices[0];
+          if (femaleVoice) utterance.voice = femaleVoice;
+          utterance.pitch = 1.05;
+          utterance.rate = 1.0;
+        } else if (expertName === 'Madhur') {
+          const maleVoice =
+            inVoices.find(
+              (v) =>
+                v.name.toLowerCase().includes('male') ||
+                v.name.toLowerCase().includes('ravi') ||
+                v.name.toLowerCase().includes('david') ||
+                v.name.toLowerCase().includes('george'),
+            ) ||
+            inVoices[1] ||
+            inVoices[0] ||
+            enVoices.find(
+              (v) =>
+                v.name.toLowerCase().includes('david') ||
+                v.name.toLowerCase().includes('mark'),
+            ) ||
+            enVoices[0];
+          if (maleVoice) utterance.voice = maleVoice;
+          utterance.pitch = 0.85;
+          utterance.rate = 0.95;
+        } else {
+          // Prabhat
+          const maleVoice =
+            inVoices.find(
+              (v) =>
+                v.name.toLowerCase().includes('male') ||
+                v.name.toLowerCase().includes('ravi') ||
+                v.name.toLowerCase().includes('prabhat'),
+            ) ||
+            inVoices[0] ||
+            enVoices[0];
+          if (maleVoice) utterance.voice = maleVoice;
+          utterance.pitch = 1.0;
+          utterance.rate = 1.05;
+        }
+
+        let finished = false;
+        const finishOnce = () => {
+          if (!finished) {
+            finished = true;
+            onDone();
+          }
+        };
+
+        utterance.onend = finishOnce;
+        utterance.onerror = (e) => {
+          console.warn('[WebSpeechFallback] Speech synthesis error:', e);
+          finishOnce();
+        };
+
+        window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        console.warn('[WebSpeechFallback] Speech synthesis exception:', err);
+        onDone();
+      }
+    },
+    [],
+  );
+
+  const interruptAudio = useCallback(() => {
+    if (isPlayingAudioRef.current || isAudioPlaying) {
+      console.log('[BargeIn] Candidate speaking — interrupting interviewer audio.');
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current.currentTime = 0;
+        currentAudioRef.current = null;
+      }
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      audioQueueRef.current = [];
+      isPlayingAudioRef.current = false;
+      setIsAudioPlaying(false);
+    }
+  }, [isAudioPlaying]);
+
+  const playNextInQueue = useCallback(() => {
+    if (audioQueueRef.current.length === 0) {
+      isPlayingAudioRef.current = false;
+      currentAudioRef.current = null;
+      setIsAudioPlaying(false);
+      return;
+    }
+
+    isPlayingAudioRef.current = true;
+    setIsAudioPlaying(true);
+    audioStartedAtRef.current = Date.now();
+
+    const nextItem = audioQueueRef.current.shift()!;
+
+    if (nextItem.audioBase64) {
+      const audio = new Audio(`data:audio/wav;base64,${nextItem.audioBase64}`);
+      currentAudioRef.current = audio;
+
+      audio.onended = () => {
+        playNextInQueue();
+      };
+      audio.onerror = (e) => {
+        console.warn('[AudioQueue] Playback error, falling back to Web Speech:', e);
+        if (nextItem.textFallback) {
+          speakWithWebSpeech(nextItem.textFallback, nextItem.expertName, playNextInQueue);
+        } else {
+          playNextInQueue();
+        }
+      };
+
+      audio.play().catch((err) => {
+        console.warn('[AudioQueue] audio.play() failed, falling back to Web Speech:', err);
+        if (nextItem.textFallback) {
+          speakWithWebSpeech(nextItem.textFallback, nextItem.expertName, playNextInQueue);
+        } else {
+          playNextInQueue();
+        }
+      });
+    } else if (nextItem.textFallback) {
+      speakWithWebSpeech(nextItem.textFallback, nextItem.expertName, playNextInQueue);
+    } else {
+      playNextInQueue();
+    }
+  }, [speakWithWebSpeech]);
+
+  const enqueueAudio = useCallback(
+    (item: { audioBase64?: string; textFallback?: string; expertName?: string }) => {
+      if (!item.audioBase64 && !item.textFallback) return;
+      audioQueueRef.current.push(item);
+      if (!isPlayingAudioRef.current) {
+        playNextInQueue();
+      }
+    },
+    [playNextInQueue],
+  );
+
+  const isCandidateTurn = useCallback(
+    (uid: string | number) => {
+      const sUid = String(uid);
+      if (client?.uid && sUid === String(client.uid)) return true;
+      if (PANELIST_UIDS.has(sUid) || sUid === agentUID) return false;
+      return true;
+    },
+    [client?.uid, agentUID, PANELIST_UIDS],
+  );
 
   // Transcript + agent state — managed with AgoraVoiceAI (see effect below).
   const [rawTranscript, setRawTranscript] = useState<
@@ -201,6 +423,9 @@ export default function ConversationComponent({
   // Do NOT pass `isEnabled` — that ties track lifetime to mute state and breaks the Web Audio
   // graph inside MicButtonWithVisualizer. Mute uses track.setEnabled() only.
   const { localMicrophoneTrack } = useLocalMicrophoneTrack(isReady);
+  useEffect(() => {
+    localMicRef.current = localMicrophoneTrack;
+  }, [localMicrophoneTrack]);
 
   // ENABLE_AUDIO_PTS is a module-level SDK parameter (not on the client instance).
   // It must be set before publishing audio for transcript timing to be accurate.
@@ -225,6 +450,48 @@ export default function ConversationComponent({
       }
     }
   }, [joinSuccess, client]);
+
+  // Trigger opening panel greeting from Neerja via Sarvam bulbul:v3 REST API exactly once per session
+  useEffect(() => {
+    if (!isReady || !joinSuccess || playedGreetings.has(session.sessionId)) return;
+    playedGreetings.add(session.sessionId);
+
+    fetch('/api/interview/panel-turn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'greeting',
+        sessionId: session.sessionId,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.responseText) {
+          setServerTurns((prev) => {
+            if (prev.some((t) => t.text.trim() === data.responseText.trim())) return prev;
+            return [
+              ...prev,
+              {
+                turn_id: `turn-greeting-${session.sessionId}`,
+                uid: data.uid || 1001,
+                text: data.responseText,
+                speakerName: `${data.selectedExpert || 'Neerja'} (System Architect)`,
+                createdAt: Date.now(),
+              },
+            ];
+          });
+        }
+        enqueueAudio({
+          audioBase64: data.audioBase64,
+          textFallback: data.responseText,
+          expertName: data.selectedExpert || 'Neerja',
+        });
+      })
+      .catch((err) => {
+        console.warn('Error fetching opening panel greeting:', err);
+        playedGreetings.delete(session.sessionId);
+      });
+  }, [isReady, joinSuccess, session.sessionId, enqueueAudio]);
 
   // Initialize AgoraVoiceAI once the channel is joined.
   //
@@ -403,21 +670,45 @@ export default function ConversationComponent({
     return getCurrentInProgressMessage(transcript);
   }, [transcript]);
 
+  // Instant barge-in: If candidate begins speaking in real-time while an interviewer is talking, stop audio immediately
+  useEffect(() => {
+    if (currentInProgressMessage && isCandidateTurn(currentInProgressMessage.uid)) {
+      const liveText = currentInProgressMessage.text?.trim() || '';
+      if (
+        isPlayingAudioRef.current &&
+        liveText.length >= 3 &&
+        liveText !== lastInterruptedTextRef.current
+      ) {
+        lastInterruptedTextRef.current = liveText;
+        interruptAudio();
+      }
+    }
+  }, [currentInProgressMessage, isCandidateTurn, interruptAudio]);
+
+  // Merged message list containing both candidate speech turns and orchestrated interviewer turns
+  const combinedMessageList = useMemo(() => {
+    const candidateMessages = messageList.filter((m) => isCandidateTurn(m.uid));
+    const all = [
+      ...candidateMessages,
+      ...serverTurns.map((st) => ({
+        turn_id: st.turn_id,
+        uid: st.uid,
+        text: st.text,
+        speakerName: st.speakerName,
+        createdAt: st.createdAt,
+        status: 'END' as const,
+      })),
+    ];
+    return all.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+  }, [messageList, serverTurns, isCandidateTurn]);
+
   // ── Step 4E: Advance phase based on completed candidate turn count ───────────
   // Triggered any time messageList changes (i.e., every TRANSCRIPT_UPDATED where
-  // a turn finalises). Counting only candidate turns (uid !== agentUID) prevents
+  // a turn finalises). Counting only candidate turns prevents
   // agent replies from advancing the phase counter prematurely.
-  //
-  // Safety properties:
-  //   • Forward-only: guard `indexOf(next) > indexOf(prev)` prevents regression.
-  //   • Idempotent: same messageList length always maps to the same phase.
-  //   • StrictMode-safe: no external side-effect; pure state derivation.
-  //   • Dedup: setSession is a no-op when nextPhase === prev.currentPhase.
   useEffect(() => {
     // Count completed candidate (non-agent) turns
-    const candidateTurns = messageList.filter(
-      (m) => String(m.uid) !== agentUID,
-    ).length;
+    const candidateTurns = messageList.filter((m) => isCandidateTurn(m.uid)).length;
 
     // Walk phases from highest to lowest to find the first one the candidate qualifies for
     const nextPhase =
@@ -439,47 +730,130 @@ export default function ConversationComponent({
         completedCandidateTurns: candidateTurns,
       };
     });
-  }, [messageList, agentUID]);
+  }, [messageList, isCandidateTurn]);
 
   const lastEvaluatedTurnRef = useRef<string | null>(null);
+  const candidateBufferRef = useRef<string[]>([]);
+  const turnDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isTurnInFlightRef = useRef(false);
 
   // ── Live Panel Speaker Evaluation & Transition ──────────────────────────────
-  // Triggers server-side speaker evaluation whenever candidate finishes a turn
+  // Buffers candidate speech fragments, waits for 1.8s of candidate silence (turn completion),
+  // and dispatches exactly ONE consolidated turn to the central panel orchestrator.
   useEffect(() => {
     const candidateTurns = messageList.filter(
-      (m) => String(m.uid) !== agentUID && m.text && m.text.trim().length > 0,
+      (m) => isCandidateTurn(m.uid) && m.text && m.text.trim().length > 0,
     );
     if (candidateTurns.length === 0) return;
 
+    if (isTurnInFlightRef.current) {
+      return;
+    }
+
     const latestTurn = candidateTurns[candidateTurns.length - 1];
-    const turnKey = `${latestTurn.turn_id}-${latestTurn.text}`;
+    const turnKey = `${latestTurn.turn_id ?? ''}-${latestTurn.text}`;
     if (lastEvaluatedTurnRef.current === turnKey) return;
     lastEvaluatedTurnRef.current = turnKey;
 
-    fetch('/api/interview/panel-speaker', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'evaluate_and_transition',
-        sessionId: session.sessionId,
-        candidateText: latestTurn.text,
-      }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.selectedRole) {
-          setSession((prev) => ({
-            ...prev,
-            activeInterviewer: data.selectedRole,
-            currentRole: data.selectedRole,
-            panelSpeakerState: data.speakerState,
-          }));
-        }
+    const lowerText = latestTurn.text.toLowerCase().trim();
+    if (
+      lowerText.length < 3 ||
+      lowerText.includes('welcome to echosphere') ||
+      lowerText.includes('i am neerja') ||
+      lowerText.includes('system architect for today') ||
+      lowerText.includes('introduction about yourself')
+    ) {
+      // Acoustic echo of Neerja's opening greeting picked up by microphone — skip to avoid loop
+      return;
+    }
+
+    // Check if the candidate text echoes any question or greeting previously uttered by an interviewer
+    const isInterviewerEcho = serverTurns.some((st) => {
+      const stClean = st.text.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+      const turnClean = lowerText.replace(/[^a-z0-9 ]/g, '').trim();
+      if (stClean.length === 0 || turnClean.length === 0) return false;
+      const snippet = turnClean.slice(0, Math.min(30, turnClean.length));
+      return stClean.includes(snippet);
+    });
+
+    if (isInterviewerEcho) {
+      console.log('[TurnArbitrator] Suppressed speaker acoustic echo from mic:', latestTurn.text);
+      return;
+    }
+
+    // Accumulate candidate speech fragment
+    candidateBufferRef.current.push(latestTurn.text);
+
+    // Reset debounce timer — wait for 1.8s of candidate silence before invoking panel
+    if (turnDebounceTimerRef.current) {
+      clearTimeout(turnDebounceTimerRef.current);
+    }
+
+    turnDebounceTimerRef.current = setTimeout(() => {
+      if (isTurnInFlightRef.current || isAudioPlaying) return;
+
+      const fullCandidateText = candidateBufferRef.current.join(' ').trim();
+      candidateBufferRef.current = [];
+      if (fullCandidateText.length < 3) return;
+
+      isTurnInFlightRef.current = true;
+
+      fetch('/api/interview/panel-turn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'turn',
+          sessionId: session.sessionId,
+          userSpeechText: fullCandidateText,
+        }),
       })
-      .catch((err) => {
-        console.warn('Error executing live panel speaker transition:', err);
-      });
-  }, [messageList, agentUID, session.sessionId]);
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.role) {
+            const roleConfig = getRoleConfig(data.role);
+            setSession((prev) => ({
+              ...prev,
+              activeInterviewer: data.role,
+              currentRole: data.role,
+            }));
+
+            if (data.responseText) {
+              setServerTurns((prev) => {
+                if (prev.some((t) => t.text.trim() === data.responseText.trim())) return prev;
+                return [
+                  ...prev,
+                  {
+                    turn_id: `turn-${Date.now()}-${data.uid || 1001}`,
+                    uid: data.uid || 1001,
+                    text: data.responseText,
+                    speakerName: `${data.selectedExpert || roleConfig.interviewerName} (${roleConfig.displayName})`,
+                    createdAt: Date.now(),
+                  },
+                ];
+              });
+            }
+
+            enqueueAudio({
+              audioBase64: data.audioBase64,
+              textFallback: data.responseText,
+              expertName: data.selectedExpert || roleConfig.interviewerName,
+            });
+          }
+        })
+        .catch((err) => {
+          console.warn('Error executing central panel turn orchestrator:', err);
+        })
+        .finally(() => {
+          isTurnInFlightRef.current = false;
+        });
+    }, 750);
+
+    return () => {
+      if (turnDebounceTimerRef.current) {
+        clearTimeout(turnDebounceTimerRef.current);
+      }
+    };
+  }, [messageList, session.sessionId, isCandidateTurn, enqueueAudio, isAudioPlaying, serverTurns]);
 
   // Memoised phase label for rendering
   const phaseLabel = useMemo(
@@ -491,20 +865,29 @@ export default function ConversationComponent({
   usePublish([localMicrophoneTrack]);
 
   useClientEvent(client, 'user-joined', (user) => {
-    if (user.uid.toString() === agentUID) setIsAgentConnected(true);
+    // Panel mode: any panelist UID joining means the agent is connected.
+    if (PANELIST_UIDS.has(user.uid.toString()) || user.uid.toString() === agentUID) {
+      setIsAgentConnected(true);
+    }
   });
 
   useClientEvent(client, 'user-left', (user) => {
-    if (user.uid.toString() === agentUID) setIsAgentConnected(false);
+    // Only mark disconnected if ALL panelist UIDs have left.
+    if (PANELIST_UIDS.has(user.uid.toString()) || user.uid.toString() === agentUID) {
+      const anyPanelistStillConnected = remoteUsers.some(
+        (u) => u.uid.toString() !== user.uid.toString() && PANELIST_UIDS.has(u.uid.toString()),
+      );
+      if (!anyPanelistStillConnected) setIsAgentConnected(false);
+    }
   });
 
   // Sync isAgentConnected with remoteUsers (covers cases where user-joined/left are missed)
   useEffect(() => {
     const isAgentInRemoteUsers = remoteUsers.some(
-      (user) => user.uid.toString() === agentUID,
+      (user) => PANELIST_UIDS.has(user.uid.toString()) || user.uid.toString() === agentUID,
     );
     setIsAgentConnected(isAgentInRemoteUsers);
-  }, [remoteUsers, agentUID]);
+  }, [remoteUsers, agentUID, PANELIST_UIDS]);
 
   useClientEvent(client, 'connection-state-change', (curState) => {
     setConnectionState(curState);
@@ -583,9 +966,9 @@ export default function ConversationComponent({
     if (finalizedRef.current) return;
     finalizedRef.current = true;
 
-    // Map captured transcript message history to InterviewTurn objects
-    const turns: InterviewTurn[] = messageList.map((m, index) => {
-      const isCandidate = String(m.uid) !== agentUID;
+    // Map combined transcript message history (both candidate and orchestrated interviewer turns) to InterviewTurn objects
+    const turns: InterviewTurn[] = combinedMessageList.map((m, index) => {
+      const isCandidate = isCandidateTurn(m.uid);
       return {
         turnId: String(m.turn_id || `turn-${index}-${m.uid}`),
         uid: String(m.uid),
@@ -634,7 +1017,7 @@ export default function ConversationComponent({
     }
 
     onEndConversation(finalizedSession);
-  }, [messageList, agentUID, session, onEndConversation]);
+  }, [combinedMessageList, isCandidateTurn, session, onEndConversation]);
 
   return (
     <QuickstartConversationLayout
@@ -680,9 +1063,10 @@ export default function ConversationComponent({
       }
       transcriptPanel={
         <QuickstartTranscriptPanel
-          messageList={messageList}
+          messageList={combinedMessageList}
           currentInProgressMessage={currentInProgressMessage}
           agentUID={agentUID}
+          candidateUID={String(client?.uid ?? '')}
         />
       }
       visualizer={
@@ -693,13 +1077,13 @@ export default function ConversationComponent({
         >
           <PanelInterviewersCard
             activeRole={session.activeInterviewer || session.currentRole || getRoleForPhase(session.currentPhase)}
-            isAgentSpeaking={agentState === AgentState.SPEAKING}
-            speakerStatus={session.panelSpeakerState?.speakerState}
+            isAgentSpeaking={isAudioPlaying || agentState === AgentState.SPEAKING}
+            speakerStatus={isAudioPlaying ? 'SPEAKING' : session.panelSpeakerState?.speakerState}
           />
-          <AgentVisualizer state={visualizerState} size="lg" />
+          <AgentVisualizer state={isAudioPlaying ? 'talking' : visualizerState} size="lg" />
           {remoteUsers.map((user) => (
             <div key={user.uid} className="hidden">
-              <RemoteUser user={user} />
+              <RemoteUser user={user} playAudio={!PANELIST_UIDS.has(String(user.uid))} />
             </div>
           ))}
         </div>

@@ -20,6 +20,7 @@ export { InterviewRole } from '@/types/interview';
 
 export interface RoleConfig {
   role: InterviewRole;
+  uid: number; // Dedicated Agora RTC UID for this panelist
   displayName: string;
   interviewerName: string;
   gender: 'female' | 'male';
@@ -28,6 +29,7 @@ export interface RoleConfig {
   allowedPhases: InterviewPhase[];
   systemPrompt: string;
   greeting: string;
+  vendor?: string; // Explicitly assigned TTS vendor
   voiceId: string; // Active or default voice ID
   sarvamSpeaker: string; // Sarvam AI native Indian speaker
   azureVoiceName: string; // Microsoft Azure Neural voice
@@ -81,11 +83,12 @@ You are a Principal Security Architect based in India. You speak in a composed, 
 export const ROLE_CONFIGS: Record<InterviewRole, RoleConfig> = {
   [InterviewRole.SYSTEM_ARCHITECT]: {
     role: InterviewRole.SYSTEM_ARCHITECT,
+    uid: 1001,
     displayName: 'System Architect',
     interviewerName: 'Neerja',
     gender: 'female',
-    sarvamSpeaker: 'ritu', // Sarvam AI native Indian English female (bulbul:v3)
-    voiceId: 'ritu',
+    sarvamSpeaker: 'priya', // bulbul:v3 female voice
+    voiceId: 'priya',
     azureVoiceName: 'en-IN-NeerjaNeural',
     minimaxVoiceId: 'English_captivating_female1',
     description:
@@ -112,11 +115,12 @@ export const ROLE_CONFIGS: Record<InterviewRole, RoleConfig> = {
   },
   [InterviewRole.PRODUCT_MANAGER]: {
     role: InterviewRole.PRODUCT_MANAGER,
+    uid: 1002,
     displayName: 'Product Manager',
     interviewerName: 'Prabhat',
     gender: 'male',
-    sarvamSpeaker: 'aditya', // Sarvam AI native Indian English male 1 (bulbul:v3)
-    voiceId: 'aditya',
+    sarvamSpeaker: 'shubh', // bulbul:v3 male voice
+    voiceId: 'shubh',
     azureVoiceName: 'en-IN-PrabhatNeural',
     minimaxVoiceId: 'English_Diligent_Man',
     description:
@@ -137,11 +141,12 @@ export const ROLE_CONFIGS: Record<InterviewRole, RoleConfig> = {
   },
   [InterviewRole.SECURITY_LEAD]: {
     role: InterviewRole.SECURITY_LEAD,
+    uid: 1003,
     displayName: 'Security & Reliability Lead',
     interviewerName: 'Madhur',
     gender: 'male',
-    sarvamSpeaker: 'ashutosh', // Sarvam AI native Indian English male 2 (bulbul:v3)
-    voiceId: 'ashutosh',
+    sarvamSpeaker: 'aditya', // bulbul:v3 male voice (distinct from shubh)
+    voiceId: 'aditya',
     azureVoiceName: 'hi-IN-MadhurNeural',
     minimaxVoiceId: 'English_magnetic_voiced_man',
     description:

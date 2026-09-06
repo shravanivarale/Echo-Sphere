@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, sessionId, targetRole, candidateText } = body;
+    const { action, sessionId, targetRole, candidateText, recentTranscript } = body;
 
     // Security validation: Reject client-forged activeSpeaker overrides
     if (body.overrideActiveSpeaker || body.forceSpeaker) {
@@ -60,28 +60,100 @@ export async function POST(request: NextRequest) {
         reason: selection.reason,
       });
 
-      // Update Agora ConvoAI Agent persona and voice ID live if agentId and credentials exist
+      // ── Multi-agent speaker activation via LLM system_messages update ─────────
+      //
+      // Architecture: 3 separate Agora agents run simultaneously in the channel,
+      // each with their own UID (1001/1002/1003) and voice (priya/shubh/aditya).
+      //
+      // Speaker switching works by updating each agent's system prompt:
+      //   • Active speaker  → injected with "YOU ARE THE ACTIVE SPEAKER — respond now"
+      //   • Silent speakers → injected with "YOU ARE ON STANDBY — do not respond"
+      //
+      // This is the ONLY supported runtime update (llm.system_messages via the SDK).
+      // TTS and remoteUids cannot be changed at runtime via the update API.
       const appId = process.env.NEXT_PUBLIC_AGORA_APP_ID;
       const appCertificate = process.env.NEXT_AGORA_APP_CERTIFICATE;
 
-      if (session.agentId && appId && appCertificate) {
+      if (session.agentIds && appId && appCertificate) {
         try {
           const { AgoraClient, Area, generateConvoAIToken } = await import('agora-agents');
           const { getRoleConfig } = await import('@/lib/interview-roles');
           const { buildPanelSystemPrompt } = await import('@/lib/panel-orchestrator');
 
-          const roleConfig = getRoleConfig(selection.selectedRole);
+          const agoraClient = new AgoraClient({ area: Area.US, appId, appCertificate });
+
+          // Build context summary from recent transcript (last 6 turns max)
+          const contextSummary = recentTranscript
+            ? `\n\n# Recent Conversation Context\n${recentTranscript}`
+            : '';
+
+          // Update ALL panelist agents in parallel: activate the selected one, silence the rest
+          const allRoles = Object.values(InterviewRole) as InterviewRole[];
+
+          await Promise.allSettled(
+            allRoles.map(async (role) => {
+              const agentId = session.agentIds?.[role];
+              if (!agentId) return;
+
+              const roleConfig = getRoleConfig(role);
+              const isActiveSpeaker = role === selection.selectedRole;
+
+              const instructions = buildPanelSystemPrompt(role, {
+                candidateName: session.candidateName,
+                appliedRole: session.appliedRole,
+                jobDescription: session.jobDescription,
+                resumeText: session.resumeText,
+              });
+
+              const activeSpeakerDirective = isActiveSpeaker
+                ? `\n\n# TURN STATUS — ACTIVE SPEAKER\nYOU ARE NOW THE ACTIVE SPEAKER. The candidate just said: "${candidateText || 'something'}". Respond as ${roleConfig.interviewerName} in your characteristic voice. Ask ONE focused follow-up question in your domain.${contextSummary}`
+                : `\n\n# TURN STATUS — STANDBY\n${roleConfig.interviewerName}, you are currently ON STANDBY. ${selection.interviewerName} (${getRoleConfig(selection.selectedRole).displayName}) is the active speaker for this turn. Do NOT respond, generate speech, or interrupt. Stay completely silent.${contextSummary}`;
+
+              const roleConfig_uid = roleConfig.uid;
+              const channelName = session.channelName || session.sessionId;
+
+              const token = generateConvoAIToken({
+                appId,
+                appCertificate,
+                channelName,
+                uid: roleConfig_uid,
+              });
+
+              await agoraClient.agents.update(
+                {
+                  appid: appId,
+                  agentId,
+                  properties: {
+                    llm: {
+                      system_messages: [
+                        { role: 'system', content: instructions + activeSpeakerDirective },
+                      ],
+                    },
+                  },
+                },
+                { headers: { Authorization: `agora token=${token}` } },
+              );
+
+              console.log(
+                `[PanelSpeakerAPI] Updated: ${roleConfig.interviewerName} → ${isActiveSpeaker ? 'ACTIVE' : 'STANDBY'} | AgentID="${agentId}"`,
+              );
+            }),
+          );
+        } catch (updateErr) {
+          console.warn('[PanelSpeakerAPI] Agent update error:', updateErr);
+        }
+      } else if (session.agentId && appId && appCertificate && !session.agentIds) {
+        // ── Backward-compat: single-agent mode (legacy) ───────────────────────
+        try {
+          const { AgoraClient, Area, generateConvoAIToken } = await import('agora-agents');
+          const { buildPanelSystemPrompt } = await import('@/lib/panel-orchestrator');
+
+          const agoraClient = new AgoraClient({ area: Area.US, appId, appCertificate });
           const instructions = buildPanelSystemPrompt(selection.selectedRole, {
             candidateName: session.candidateName,
             appliedRole: session.appliedRole,
             jobDescription: session.jobDescription,
             resumeText: session.resumeText,
-          });
-
-          const client = new AgoraClient({
-            area: Area.US,
-            appId,
-            appCertificate,
           });
 
           const token = generateConvoAIToken({
@@ -90,74 +162,27 @@ export async function POST(request: NextRequest) {
             channelName: session.channelName || session.sessionId,
             uid: DEFAULT_AGENT_UID,
           });
-          const headers = { Authorization: `agora token=${token}` };
 
-          const sarvamKey = process.env.SARVAM_API_KEY || process.env.NEXT_SARVAM_API_KEY;
-          const azureKey = process.env.AZURE_SPEECH_KEY || process.env.NEXT_AZURE_SPEECH_KEY;
-          const azureRegion = process.env.AZURE_SPEECH_REGION || process.env.NEXT_AZURE_SPEECH_REGION || 'centralindia';
-
-          const ttsPayload = sarvamKey
-            ? {
-                vendor: 'sarvam',
-                params: {
-                  api_subscription_key: sarvamKey,
-                  speaker: roleConfig.sarvamSpeaker,
-                  target_language_code: 'en-IN',
-                  model: 'bulbul:v3',
-                  model_id: 'bulbul:v3',
-                  sample_rate: 24000,
-                },
-              }
-            : azureKey
-            ? {
-                vendor: 'microsoft',
-                params: {
-                  key: azureKey,
-                  region: azureRegion,
-                  voice_name: roleConfig.azureVoiceName || roleConfig.voiceId,
-                },
-              }
-            : {
-                vendor: 'minimax',
-                params: {
-                  model: 'speech_2_6_turbo',
-                  language_boost: 'English',
-                  voice_setting: {
-                    voice_id: roleConfig.minimaxVoiceId || roleConfig.voiceId,
-                  },
-                },
-              };
-
-          await client.agents.update(
+          await agoraClient.agents.update(
             {
               appid: appId,
               agentId: session.agentId,
               properties: {
                 llm: {
-                  system_messages: [
-                    {
-                      role: 'system',
-                      content: instructions,
-                    },
-                  ],
+                  system_messages: [{ role: 'system', content: instructions }],
                 },
-                tts: ttsPayload,
-              } as any,
+              },
             },
-            { headers },
+            { headers: { Authorization: `agora token=${token}` } },
           );
-          const activeSpeakerName = sarvamKey ? roleConfig.sarvamSpeaker : azureKey ? (roleConfig.azureVoiceName || roleConfig.voiceId) : (roleConfig.minimaxVoiceId || roleConfig.voiceId);
-          const activeVendor = sarvamKey ? 'Sarvam AI' : azureKey ? 'Microsoft Azure' : 'MiniMax';
-          console.log(
-            `[PanelSpeakerAPI] Agora Agent properties updated live to ${selection.interviewerName} (${activeSpeakerName}) [${activeVendor}]`,
-          );
+          console.log(`[PanelSpeakerAPI] Legacy single-agent updated to: ${selection.interviewerName}`);
         } catch (updateErr) {
-          console.warn(`[PanelSpeakerAPI] Live agent update notification:`, updateErr);
+          console.warn('[PanelSpeakerAPI] Legacy agent update error:', updateErr);
         }
       }
 
       console.log(
-        `[PanelSpeakerAPI] Speaker Transition: Session="${sessionId}", ActiveSpeaker="${speakerState.activeSpeaker}", Reason="${selection.reason}", Timestamp="${new Date(speakerState.lastTransitionTimestamp).toISOString()}"`,
+        `[PanelSpeakerAPI] Transition: Session="${sessionId}" | ActiveSpeaker="${speakerState.activeSpeaker}" | Reason="${selection.reason}"`,
       );
 
       return NextResponse.json({

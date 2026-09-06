@@ -3,6 +3,9 @@ import tseslint from 'typescript-eslint';
 
 /** @type {import('eslint').Linter.Config[]} */
 const config = [
+  {
+    ignores: ['.next/**', 'echosphere-agora/**', 'scratch/**', 'node_modules/**', 'dist/**'],
+  },
   ...coreWebVitals,
   {
     plugins: {

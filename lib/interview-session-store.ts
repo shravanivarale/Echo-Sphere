@@ -46,6 +46,8 @@ export interface CreateSessionParams {
   channelName?: string;
   candidateUid?: string;
   agentId?: string;
+  agentIds?: Partial<Record<InterviewRole, string>>;
+  panelAgentUids?: Partial<Record<InterviewRole, number>>;
   initialRole?: InterviewRole;
 }
 
@@ -59,6 +61,9 @@ export function createSession(params: CreateSessionParams): InterviewSession {
     if (params.appliedRole) existing.appliedRole = params.appliedRole;
     if (params.jobDescription) existing.jobDescription = params.jobDescription;
     if (params.resumeText) existing.resumeText = params.resumeText;
+    if (params.agentId) existing.agentId = params.agentId;
+    if (params.agentIds) existing.agentIds = { ...existing.agentIds, ...params.agentIds };
+    if (params.panelAgentUids) existing.panelAgentUids = { ...existing.panelAgentUids, ...params.panelAgentUids };
     if (!existing.panelSpeakerState) {
       existing.panelSpeakerState = createInitialSpeakerState(existing.currentRole);
     }
@@ -76,6 +81,8 @@ export function createSession(params: CreateSessionParams): InterviewSession {
     channelName: params.channelName || params.sessionId,
     candidateUid: params.candidateUid,
     agentId: params.agentId,
+    agentIds: params.agentIds,
+    panelAgentUids: params.panelAgentUids,
     startedAt: new Date().toISOString(),
     currentPhase: InterviewPhase.BACKGROUND,
     currentRole: initialRole,
@@ -92,11 +99,15 @@ export function createSession(params: CreateSessionParams): InterviewSession {
   return newSession;
 }
 
-/**
- * Retrieves an existing session by its canonical sessionId.
- */
 export function getSession(sessionId: string): InterviewSession | undefined {
   return sessionStore.get(sessionId);
+}
+
+/**
+ * Removes an existing session by its canonical sessionId.
+ */
+export function deleteSession(sessionId: string): boolean {
+  return sessionStore.delete(sessionId);
 }
 
 /**

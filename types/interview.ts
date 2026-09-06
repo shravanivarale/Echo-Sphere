@@ -162,6 +162,10 @@ export interface InterviewSession {
   candidateUid?: string;
   /** Agent ID returned by /api/invite-agent */
   agentId?: string;
+  /** Multi-agent IDs keyed by InterviewRole */
+  agentIds?: Partial<Record<InterviewRole, string>>;
+  /** Panel Agent UIDs keyed by InterviewRole */
+  panelAgentUids?: Partial<Record<InterviewRole, number>>;
   /** ISO timestamp when the interview session started */
   startedAt?: string;
   /** Current interview phase */

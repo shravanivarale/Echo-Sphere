@@ -6,6 +6,7 @@ type TranscriptMessage = {
   turn_id?: string | number;
   uid: number;
   text?: string;
+  speakerName?: string;
   createdAt?: number;
 };
 
@@ -13,6 +14,7 @@ type QuickstartTranscriptPanelProps = {
   messageList: TranscriptMessage[];
   currentInProgressMessage: TranscriptMessage | null;
   agentUID: string;
+  candidateUID?: string;
 };
 
 function formatMessageTime(createdAt?: number) {
@@ -23,10 +25,17 @@ function formatMessageTime(createdAt?: number) {
   }).format(new Date(createdAt));
 }
 
+const PANELIST_LABELS: Record<string, { name: string; color: string }> = {
+  '1001': { name: 'Neerja (System Architect)', color: 'text-blue-400' },
+  '1002': { name: 'Prabhat (Product Manager)', color: 'text-purple-400' },
+  '1003': { name: 'Madhur (Security Lead)', color: 'text-emerald-400' },
+};
+
 export function QuickstartTranscriptPanel({
   messageList,
   currentInProgressMessage,
   agentUID,
+  candidateUID,
 }: QuickstartTranscriptPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const messages = useMemo(
@@ -51,7 +60,7 @@ export function QuickstartTranscriptPanel({
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
         <div>
           <h2 className="text-sm font-semibold text-foreground">Transcript</h2>
-          <p className="text-xs text-muted-foreground">Live voice turns</p>
+          <p className="text-xs text-muted-foreground">Live multi-agent turns</p>
         </div>
       </div>
 
@@ -65,8 +74,30 @@ export function QuickstartTranscriptPanel({
           </div>
         ) : (
           messages.map((message, index) => {
-            const isAgent = String(message.uid) === agentUID;
-            const label = isAgent ? 'Agent' : 'You';
+            const uidStr = String(message.uid);
+            const isKnownPanelist = uidStr === '1001' || uidStr === '1002' || uidStr === '1003';
+            const isAgent =
+              isKnownPanelist ||
+              uidStr === agentUID ||
+              (candidateUID ? uidStr !== candidateUID : false) ||
+              !!message.speakerName;
+
+            let label = 'You';
+            let labelColor = 'text-muted-foreground';
+
+            if (message.speakerName) {
+              label = message.speakerName;
+              if (label.includes('Neerja')) labelColor = 'text-blue-400';
+              else if (label.includes('Prabhat')) labelColor = 'text-purple-400';
+              else if (label.includes('Madhur')) labelColor = 'text-emerald-400';
+            } else if (PANELIST_LABELS[uidStr]) {
+              label = PANELIST_LABELS[uidStr].name;
+              labelColor = PANELIST_LABELS[uidStr].color;
+            } else if (isAgent) {
+              label = 'Interviewer';
+              labelColor = 'text-blue-400';
+            }
+
             const text = message.text?.trim();
             const time = formatMessageTime(message.createdAt);
 
@@ -75,9 +106,9 @@ export function QuickstartTranscriptPanel({
                 key={`${message.turn_id ?? message.uid}-${index}`}
                 className={`flex flex-col ${isAgent ? 'items-start' : 'items-end'}`}
               >
-                <div className="mb-1 flex items-center gap-2 px-1 text-xs font-semibold text-muted-foreground">
+                <div className={`mb-1 flex items-center gap-2 px-1 text-xs font-semibold ${labelColor}`}>
                   <span>{label}</span>
-                  {time && <span className="font-normal">{time}</span>}
+                  {time && <span className="font-normal text-muted-foreground">{time}</span>}
                 </div>
                 <div
                   className={`max-w-full whitespace-pre-wrap rounded-xl border px-3 py-2 text-sm leading-6 ${

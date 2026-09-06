@@ -1,74 +1,67 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getSession, deleteSession } from '@/lib/interview-session-store';
 import { AgoraClient, Area } from 'agora-agents';
 import { StopConversationRequest } from '@/types/conversation';
 
-function isAgentAlreadyStoppingOrStopped(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false;
-
-  const maybeErr = error as {
-    statusCode?: number;
-    body?: { detail?: string; reason?: string };
-    message?: string;
-  };
-
-  const statusCode = maybeErr.statusCode;
-  const reason = maybeErr.body?.reason?.toLowerCase();
-  const detail = maybeErr.body?.detail?.toLowerCase() ?? maybeErr.message?.toLowerCase() ?? '';
-
-  if (statusCode === 404) return true;
-  if (reason === 'invalidrequest' && detail.includes('already in the process of shutting down')) {
-    return true;
-  }
-  return false;
-}
-
-export async function POST(request: Request) {
+/**
+ * Stops one or many agents belonging to a session.
+ *   • Legacy single‑agent mode: `agent_id` is respected.
+ *   • Multi‑agent mode: `agent_ids` array is honoured and all IDs are stopped.
+ */
+export async function POST(req: NextRequest) {
   try {
-    const body: StopConversationRequest = await request.json();
-    const { agent_id } = body;
+    const body = (await req.json()) as StopConversationRequest;
+    const { agent_id, agent_ids } = body;
 
-    if (!agent_id) {
+    if (!agent_id && (!agent_ids || agent_ids.length === 0)) {
       return NextResponse.json(
         { error: 'agent_id is required' },
         { status: 400 },
       );
     }
 
+    const sessionId = req.headers.get('x-session-id');
+    const session = sessionId ? getSession(sessionId) : undefined;
+
     const appId = process.env.NEXT_PUBLIC_AGORA_APP_ID;
     const appCertificate = process.env.NEXT_AGORA_APP_CERTIFICATE;
     if (!appId || !appCertificate) {
-      throw new Error(
-        'Missing Agora configuration. Set NEXT_PUBLIC_AGORA_APP_ID and NEXT_AGORA_APP_CERTIFICATE.',
-      );
+      throw new Error('Missing Agora credentials');
     }
 
-    // area: change to Area.EU or Area.AP for European or Asia-Pacific deployments.
-    const client = new AgoraClient({
-      area: Area.US,
-      appId,
-      appCertificate,
-    });
-    try {
-      await client.stopAgent(agent_id);
-    } catch (error) {
-      if (isAgentAlreadyStoppingOrStopped(error)) {
-        // Treat stop as idempotent: agent is already exiting (or gone).
-        return NextResponse.json({ success: true, state: 'already-stopping' });
+    const agoraClient = new AgoraClient({ area: Area.US, appId, appCertificate });
+
+    // Normalise IDs – include legacy single‑agent ID if present for safety.
+    const idsToStop = new Set<string>();
+    if (agent_id) idsToStop.add(agent_id);
+    if (Array.isArray(agent_ids)) {
+      for (const id of agent_ids) idsToStop.add(id);
+    }
+    // Backwards‑compatible fallback to stored session ids.
+    if (session?.agentId) idsToStop.add(session.agentId);
+    if (session?.agentIds) {
+      Object.values(session.agentIds).forEach((id) => {
+        if (id) idsToStop.add(id);
+      });
+    }
+
+    // Stop each agent sequentially – the Agora SDK wait for completion.
+    for (const id of idsToStop) {
+      try {
+        await agoraClient.stopAgent(id);
+        console.log(`[StopConversation] Stopped agent ID=${id}`);
+      } catch (e) {
+        console.warn(`[StopConversation] Failed to stop agent ID=${id}:`, e);
       }
-      throw error;
     }
 
-    return NextResponse.json({ success: true });
+    // Clean up the stored session.
+    if (session?.sessionId) {
+      deleteSession(session.sessionId);
+    }
+    return NextResponse.json({ success: true, stoppedAgentIds: Array.from(idsToStop) });
   } catch (error) {
     console.error('Error stopping conversation:', error);
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Failed to stop conversation',
-      },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
   }
 }
