@@ -80,7 +80,53 @@ Rules:
         else if (rawContent.includes('Neerja') || rawContent.includes('Shravya')) selectedExpert = 'Neerja';
       }
     } catch (e) {
-      console.warn('[PanelPlanner] OpenAI planner failed, using keyword fallback:', e);
+      console.warn('[PanelPlanner] OpenAI planner failed, checking Sarvam LLM:', e);
+    }
+  }
+
+  // Tier 2: Try Sarvam AI planner if OpenAI is not configured
+  if (!selectedExpert && process.env.SARVAM_API_KEY) {
+    try {
+      const res = await fetch('https://api.sarvam.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'api-subscription-key': process.env.SARVAM_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'sarvam-105b-conversations',
+          messages: [
+            {
+              role: 'system',
+              content: `You are the Coordinator of a technical interview panel.
+Panelists:
+- Neerja (System Architect): Architecture, backend, databases, scaling, APIs, components.
+- Prabhat (Product Manager): Requirements, scope, prioritization, latency SLAs, metrics, UX.
+- Madhur (Security & Reliability Lead): Security, auth, rate limiting, reliability, failover.
+
+Read the conversation so far and pick the SINGLE best panelist to speak next.
+Rules:
+- Avoid the same panelist speaking twice in a row.
+- Output ONLY the name: Neerja, Prabhat, or Madhur. No other words.`,
+            },
+            { role: 'user', content: currentTranscript },
+          ],
+          temperature: 0.1,
+          max_tokens: 10,
+        }),
+      });
+
+      if (res.ok) {
+        const data = (await res.json()) as {
+          choices?: Array<{ message?: { content?: string } }>;
+        };
+        const rawContent = data.choices?.[0]?.message?.content?.trim() ?? '';
+        if (rawContent.includes('Prabhat')) selectedExpert = 'Prabhat';
+        else if (rawContent.includes('Madhur')) selectedExpert = 'Madhur';
+        else if (rawContent.includes('Neerja')) selectedExpert = 'Neerja';
+      }
+    } catch (e) {
+      console.warn('[PanelPlanner] Sarvam planner call failed:', e);
     }
   }
 
