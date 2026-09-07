@@ -83,57 +83,27 @@ export function cleanResumeText(raw: string, maxLength = 6000): string {
 
 /**
  * Extracts text from a PDF buffer using pdfjs-dist (Next.js-safe).
- *
- * pdfjs-dist v6 requires either a workerSrc or a workerPort.
- * In Node.js we point workerSrc at the bundled worker .mjs file
- * which pdfjs spawns as a real Node.js Worker thread.
+ * Extracts text from a PDF buffer using pdf-parse (Next.js-safe).
  */
 async function extractPdfText(buffer: ArrayBuffer): Promise<string> {
-  // Dynamic import keeps this server-side only (never bundled for the browser).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  // @ts-ignore
-  const pdfjsLib: any = await import('pdfjs-dist/legacy/build/pdf.mjs');
-
-  // Resolve the worker script path relative to where pdfjs-dist is installed.
-  // IMPORTANT: On Windows, Node.js's ESM loader requires a file:// URL, not a
-  // raw absolute path (e.g. C:\...). pathToFileURL handles this correctly.
-  const workerAbsPath = path.resolve(
-    process.cwd(),
-    'node_modules',
-    'pdfjs-dist',
-    'legacy',
-    'build',
-    'pdf.worker.mjs',
-  );
-  const workerSrc = pathToFileURL(workerAbsPath).href;
-
-  // Set workerSrc on the module-level singleton (safe to call multiple times with same value)
-  pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
-
-  const data = new Uint8Array(buffer);
-  const loadingTask = pdfjsLib.getDocument({
-    data,
-    useSystemFonts: true,
-    disableFontFace: true,
-    verbosity: 0,
-  });
-
-  const pdf = await loadingTask.promise;
-  const pageTexts: string[] = [];
-
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    const pageText = (content.items as Array<{ str?: string }>)
-      .filter((item) => typeof item.str === 'string')
-      .map((item) => item.str!)
-      .join(' ');
-    pageTexts.push(pageText);
-    page.cleanup();
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pdfParseModule: any = await import('pdf-parse');
+    const pdfParse = pdfParseModule.default || pdfParseModule;
+    const nodeBuf = Buffer.from(buffer);
+    if (typeof pdfParse === 'function') {
+      const data = await pdfParse(nodeBuf);
+      return data.text || '';
+    } else if (pdfParse?.PDFParser) {
+      const parser = new pdfParse.PDFParser();
+      const data = await parser.parse(nodeBuf);
+      return data?.text || '';
+    }
+    return '';
+  } catch (err) {
+    console.warn('[ResumeParser] PDF parsing fallback:', err);
+    return '';
   }
-
-  await pdf.cleanup();
-  return pageTexts.join('\n');
 }
 
 /**
