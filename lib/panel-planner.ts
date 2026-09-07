@@ -94,18 +94,55 @@ Rules:
     const madhurCount = pastTurns.filter((t) => t.role === 'Madhur').length;
     const totalPanelTurns = neerjaCount + prabhatCount + madhurCount;
 
+    const isStruggle =
+      text.includes('sorry') ||
+      text.includes('not sure') ||
+      text.includes("don't know") ||
+      text.includes('dont know') ||
+      text.includes('unable') ||
+      text.includes('cant answer') ||
+      text.includes("can't answer") ||
+      text.includes('cannot answer') ||
+      text.includes('no idea');
+
+    const lastPanelRole = pastTurns.length > 0 ? pastTurns[pastTurns.length - 1].role : null;
+
+    // If candidate struggled on the last question, let the same interviewer provide guidance/hint
+    if (isStruggle && lastPanelRole) {
+      selectedExpert = (lastPanelRole === 'Shravya' ? 'Neerja' : lastPanelRole) as 'Neerja' | 'Prabhat' | 'Madhur';
+    }
+
+    // Resume / verification check — route to Lead Neerja
+    if (!selectedExpert) {
+      const isResumeCheck =
+        text.includes('resume') ||
+        text.includes('cv') ||
+        text.includes('did you get') ||
+        text.includes('have my project') ||
+        text.includes('list some') ||
+        text.includes('uploaded');
+
+      if (isResumeCheck) {
+        selectedExpert = 'Neerja';
+      }
+    }
+
     // Phase 1 — INTRO: candidate just introduced themselves
-    // Route to Neerja to ask about projects/skills/background naturally.
-    const isIntro =
-      (text.includes('my name is') ||
-        text.includes("i'm ") ||
-        text.includes('i am ') ||
-        text.includes('interviewing for') ||
-        text.includes('applied for') ||
-        text.includes('background')) &&
-      totalPanelTurns <= 1;
-    if (isIntro) {
-      selectedExpert = 'Neerja';
+    if (!selectedExpert) {
+      const isIntro =
+        (text.includes('my name is') ||
+          text.includes("i'm ") ||
+          text.includes('i am ') ||
+          text.includes('interviewing for') ||
+          text.includes('applied for') ||
+          text.includes('this is ') ||
+          text.includes('excited to be here')) &&
+        totalPanelTurns <= 1 &&
+        !isStruggle;
+
+      if (isIntro) {
+        selectedExpert = 'Neerja';
+      }
     }
 
     // Phase 2 — BACKGROUND: candidate talked about projects/experience/skills
@@ -114,6 +151,7 @@ Rules:
         text.includes('project') ||
         text.includes('worked on') ||
         text.includes('built') ||
+        text.includes('rakshika') ||
         text.includes('experience') ||
         text.includes('skill') ||
         text.includes('used') ||
@@ -126,10 +164,10 @@ Rules:
         text.includes('machine learning') ||
         text.includes('analyst') ||
         text.includes('dashboard') ||
-        text.includes('report');
+        text.includes('safety');
 
       if (isBackgroundTalk && totalPanelTurns <= 3) {
-        // Still in background phase — stay with Neerja unless Prabhat hasn't spoken
+        // In background phase: alternate between Neerja and Prabhat
         selectedExpert = prabhatCount === 0 ? 'Prabhat' : 'Neerja';
       }
     }
@@ -144,6 +182,7 @@ Rules:
         'security', 'auth', 'oauth', 'jwt', 'token', 'encrypt', 'rate limit',
         'ddos', 'failover', 'disaster recovery', 'circuit breaker', 'firewall',
         'compliance', 'vulnerability', 'resilience', 'outage', 'attack', 'hashing',
+        'privacy', 'password', 'login',
       ];
       for (const kw of securityKeywords) {
         if (text.includes(kw)) securityScore += 2;
@@ -152,7 +191,8 @@ Rules:
       const productKeywords = [
         'requirement', 'scope', 'persona', 'sla', 'qps', 'business',
         'feature', 'scale', 'throughput', 'mvp', 'metric', 'retention', 'ux',
-        'stakeholder', 'prioritize', 'roadmap', 'growth', 'traffic',
+        'stakeholder', 'prioritize', 'roadmap', 'growth', 'traffic', 'user',
+        'deadline', 'priority', 'deliverable',
       ];
       for (const kw of productKeywords) {
         if (text.includes(kw)) productScore += 2;
@@ -163,6 +203,7 @@ Rules:
         'queue', 'kafka', 'storage', 'partition', 'sharding', 'architecture',
         'microservice', 'monolith', 'api', 'rest', 'graphql', 'gateway',
         'consistency', 'replication', 'schema', 'latency', 'load balancer',
+        'backend', 'gesture', 'service',
       ];
       for (const kw of architectureKeywords) {
         if (text.includes(kw)) architectureScore += 2;

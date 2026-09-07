@@ -121,18 +121,19 @@ export function QuickstartTranscriptPanel({
               >
                 {/* Avatar Icon / Photo */}
                 {isAgent ? (
-                  <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full border border-primary/40 mt-1">
+                  <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full border border-primary/40 mt-1" aria-hidden="true">
                     <Image
                       src={avatarUrl || '/shravya.jpg'}
-                      alt={label}
+                      alt=""
+                      aria-hidden="true"
                       fill
                       sizes="28px"
                       className="object-cover"
                     />
                   </div>
                 ) : (
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-primary/40 bg-primary/20 text-primary mt-1">
-                    <User className="h-4 w-4" />
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-primary/40 bg-primary/20 text-primary mt-1" aria-hidden="true">
+                    <User className="h-4 w-4" aria-hidden="true" />
                   </div>
                 )}
 
