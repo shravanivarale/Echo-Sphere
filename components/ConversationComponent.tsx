@@ -8,7 +8,6 @@ import AgoraRTC, {
   useClientEvent,
   useJoin,
   usePublish,
-  RemoteUser,
   UID,
 } from 'agora-rtc-react';
 import {
@@ -1128,11 +1127,6 @@ export default function ConversationComponent({
             speakerStatus={isAudioPlaying ? 'SPEAKING' : session.panelSpeakerState?.speakerState}
           />
           <AgentVisualizer state={isAudioPlaying ? 'talking' : visualizerState} size="lg" />
-          {remoteUsers.map((user) => (
-            <div key={user.uid} className="hidden">
-              <RemoteUser user={user} playAudio={!PANELIST_UIDS.has(String(user.uid))} />
-            </div>
-          ))}
         </div>
       }
       controls={
