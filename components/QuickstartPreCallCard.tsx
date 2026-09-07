@@ -50,12 +50,7 @@ export function QuickstartPreCallCard({
     setIsParsing(true);
 
     try {
-      // Reject PDF files (currently cause parsing error)
-      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-        setValidationError('PDF uploads are currently not supported. Please use DOCX or TXT.');
-        setIsParsing(false);
-        return;
-      }
+      // PDF files are now accepted; they will be processed by the resume parser.
       const formData = new FormData();
       formData.append('file', file);
 
