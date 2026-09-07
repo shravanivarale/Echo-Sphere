@@ -18,8 +18,12 @@ export async function POST(request: NextRequest) {
     }
 
     const rawText = await extractResumeText(file, file.type);
-    const resumeText = cleanResumeText(rawText);
-    const candidateName = extractCandidateName(rawText);
+    const cleaned = cleanResumeText(rawText);
+    const resumeText =
+      cleaned.length > 0
+        ? cleaned
+        : `Resume uploaded: ${file.name}. Candidate profile for technical interview.`;
+    const candidateName = extractCandidateName(rawText, file.name);
 
     return NextResponse.json({ success: true, candidateName, resumeText });
   } catch (error) {

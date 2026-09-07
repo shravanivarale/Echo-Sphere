@@ -256,7 +256,7 @@ export function QuickstartPreCallCard({
                     {candidateName || 'Candidate Profile'}
                   </p>
                   <p className="truncate text-[11px] text-muted-foreground">
-                    {uploadedFileName}
+                    {uploadedFileName} {resumeText.length > 0 ? `(${resumeText.length} chars parsed)` : ''}
                   </p>
                 </div>
               </div>
@@ -286,11 +286,28 @@ export function QuickstartPreCallCard({
                 <span className="text-primary underline">Click to upload</span> or drag and drop
               </p>
               <p className="mt-0.5 text-[11px] text-muted-foreground">
-                Name & technical background will be auto-detected
+                PDF, DOCX, or TXT (Name & background will be auto-detected)
               </p>
             </div>
           )}
         </div>
+
+        {/* Candidate Name field (Auto-filled and editable) */}
+        {uploadedFileName && (
+          <div>
+            <label className="mb-1.5 flex items-center justify-between text-xs font-medium text-foreground">
+              <span>Candidate Name</span>
+              <span className="text-[10px] text-muted-foreground">Auto-detected · editable</span>
+            </label>
+            <input
+              type="text"
+              value={candidateName}
+              onChange={(e) => setCandidateName(e.target.value)}
+              placeholder="e.g. Shravani"
+              className="w-full rounded-md border border-border bg-card/70 px-3 py-2 text-sm font-medium text-foreground focus:border-primary focus:outline-none"
+            />
+          </div>
+        )}
 
         {/* Applied Job Role Dropdown */}
         <div>

@@ -43,27 +43,50 @@ function cleanName(raw: string): string {
  * Looks for an explicit "Name:" label, then falls back to the first
  * plausible capitalized 2-4 word line near the top of the document.
  */
-export function extractCandidateName(resumeText: string): string {
-  const lines = resumeText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+export function extractCandidateName(resumeText: string, fileName?: string): string {
+  if (resumeText) {
+    const lines = resumeText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
 
-  for (const line of lines.slice(0, 20)) {
-    const match = line.match(/^name\s*[:：]\s*(.+)$/i);
-    if (match && match[1].trim()) return cleanName(match[1].trim());
+    for (const line of lines.slice(0, 20)) {
+      const match = line.match(/^name\s*[:：\-]\s*(.+)$/i);
+      if (match && match[1].trim()) return cleanName(match[1].trim());
+    }
+
+    for (const line of lines.slice(0, 15)) {
+      const cleaned = cleanName(line);
+      if (!cleaned) continue;
+      const words = cleaned.split(/\s+/);
+      if (words.length >= 1 && words.length <= 4) {
+        if (!EMAIL_RE.test(line) && !PHONE_RE.test(line) && !URL_RE.test(line) && !/\d/.test(line)) {
+          if (!words.some((w) => BOILERPLATE.has(w.toLowerCase()))) {
+            const candidate = cleaned.replace(/^[•\-\*\|]\s*/, '').trim();
+            if (candidate.length >= 2 && candidate.length <= 40) {
+              return candidate;
+            }
+          }
+        }
+      }
+    }
   }
 
-  for (const line of lines.slice(0, 12)) {
-    const cleaned = cleanName(line);
-    if (!cleaned) continue;
-    const words = cleaned.split(/\s+/);
-    if (words.length < 2 || words.length > 4) continue;
-    if (EMAIL_RE.test(line) || PHONE_RE.test(line) || URL_RE.test(line)) continue;
-    if (/\d/.test(line)) continue;
-    if (words.some((w) => BOILERPLATE.has(w.toLowerCase()))) continue;
-    if (!words.every((w) => /^[A-Z]/.test(w))) continue;
-    return cleaned;
+  // Fallback to filename (e.g. "Shravani_Varale_Resume.pdf" -> "Shravani Varale")
+  if (fileName) {
+    const baseName = fileName.replace(/\.[^/.]+$/, '');
+    const cleanBase = baseName
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b(resume|cv|profile|latest|v\d+|\d+|final|updated|draft)\b/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (cleanBase.length >= 2) {
+      return cleanBase
+        .split(' ')
+        .filter(Boolean)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ');
+    }
   }
 
-  return '';
+  return 'Candidate';
 }
 
 /**
@@ -82,28 +105,55 @@ export function cleanResumeText(raw: string, maxLength = 6000): string {
 }
 
 /**
- * Extracts text from a PDF buffer using pdfjs-dist (Next.js-safe).
- * Extracts text from a PDF buffer using pdf-parse (Next.js-safe).
+ * Extracts text from a PDF buffer using pdf-parse v2 PDFParse class (Next.js-safe).
  */
 async function extractPdfText(buffer: ArrayBuffer): Promise<string> {
+  const nodeBuf = Buffer.from(buffer);
+
+  // Method 1: pdf-parse v2 PDFParse class
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pdfParseModule: any = await import('pdf-parse');
-    const pdfParse = pdfParseModule.default || pdfParseModule;
-    const nodeBuf = Buffer.from(buffer);
-    if (typeof pdfParse === 'function') {
-      const data = await pdfParse(nodeBuf);
-      return data.text || '';
-    } else if (pdfParse?.PDFParser) {
-      const parser = new pdfParse.PDFParser();
-      const data = await parser.parse(nodeBuf);
-      return data?.text || '';
+    const PDFParseClass =
+      pdfParseModule.PDFParse || pdfParseModule.default?.PDFParse || pdfParseModule;
+
+    if (typeof PDFParseClass === 'function' && PDFParseClass.prototype?.getText) {
+      const parser = new PDFParseClass({ data: nodeBuf });
+      const res = await parser.getText();
+      if (res && typeof res.text === 'string' && res.text.trim()) {
+        return res.text.trim();
+      }
     }
-    return '';
+
+    if (typeof pdfParseModule === 'function') {
+      const res = await pdfParseModule(nodeBuf);
+      if (res && typeof res.text === 'string' && res.text.trim()) {
+        return res.text.trim();
+      }
+    }
   } catch (err) {
-    console.warn('[ResumeParser] PDF parsing fallback:', err);
-    return '';
+    console.warn('[ResumeParser] pdf-parse parser attempt failed:', err);
   }
+
+  // Method 2: Stream text regex fallback for text-encoded PDFs
+  try {
+    const raw = nodeBuf.toString('binary');
+    const textChunks: string[] = [];
+    const tjRegex = /\((.*?)\)\s*Tj/g;
+    let tjMatch: RegExpExecArray | null;
+    while ((tjMatch = tjRegex.exec(raw)) !== null) {
+      if (tjMatch[1] && tjMatch[1].length > 1) {
+        textChunks.push(tjMatch[1]);
+      }
+    }
+    if (textChunks.length > 5) {
+      return textChunks.join(' ');
+    }
+  } catch (err) {
+    console.warn('[ResumeParser] Stream text fallback failed:', err);
+  }
+
+  return '';
 }
 
 /**
